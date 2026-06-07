@@ -1,0 +1,117 @@
+// To parse this JSON data, do
+//
+//     final popularMovies = popularMoviesFromJson(jsonString);
+
+import 'dart:convert';
+
+PopularMovies popularMoviesFromJson(String str) =>
+    PopularMovies.fromJson(json.decode(str));
+
+String popularMoviesToJson(PopularMovies data) => json.encode(data.toJson());
+
+class PopularMovies {
+  int page;
+  List<Result> results;
+  int totalPages;
+  int totalResults;
+
+  PopularMovies({
+    required this.page,
+    required this.results,
+    required this.totalPages,
+    required this.totalResults,
+  });
+
+  factory PopularMovies.fromJson(Map<String, dynamic> json) => PopularMovies(
+    page: json["page"],
+    results: List<Result>.from(json["results"].map((x) => Result.fromJson(x))),
+    totalPages: json["total_pages"],
+    totalResults: json["total_results"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "page": page,
+    "results": List<dynamic>.from(results.map((x) => x.toJson())),
+    "total_pages": totalPages,
+    "total_results": totalResults,
+  };
+}
+
+class Result {
+  bool adult;
+  String backdropPath;
+  int id;
+  String title;
+  String originalTitle;
+  String overview;
+  String posterPath;
+  String mediaType;
+  String originalLanguage;
+  List<int> genreIds;
+  double popularity;
+  DateTime releaseDate;
+  bool softcore;
+  bool video;
+  double voteAverage;
+  int voteCount;
+
+  Result({
+    required this.adult,
+    required this.backdropPath,
+    required this.id,
+    required this.title,
+    required this.originalTitle,
+    required this.overview,
+    required this.posterPath,
+    required this.mediaType,
+    required this.originalLanguage,
+    required this.genreIds,
+    required this.popularity,
+    required this.releaseDate,
+    required this.softcore,
+    required this.video,
+    required this.voteAverage,
+    required this.voteCount,
+  });
+
+  factory Result.fromJson(Map<String, dynamic> json) => Result(
+    adult: json["adult"],
+    backdropPath: json["backdrop_path"],
+    id: json["id"],
+    title: json["title"],
+    originalTitle: json["original_title"],
+    overview: json["overview"],
+    posterPath: json["poster_path"],
+    mediaType: json["media_type"] ?? "",
+    originalLanguage: json["original_language"] ?? "",
+    genreIds: List<int>.from(json["genre_ids"].map((x) => x)),
+    popularity: json["popularity"]?.toDouble(),
+    releaseDate: DateTime.parse(json["release_date"]),
+    softcore: json["softcore"],
+    video: json["video"],
+    voteAverage: json["vote_average"]?.toDouble(),
+    voteCount: json["vote_count"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "adult": adult,
+    "backdrop_path": backdropPath,
+    "id": id,
+    "title": title,
+    "original_title": originalTitle,
+    "overview": overview,
+    "poster_path": posterPath,
+    "media_type": mediaType,
+    "original_language": originalLanguage,
+    "genre_ids": List<dynamic>.from(genreIds.map((x) => x)),
+    "popularity": popularity,
+    "release_date":
+        "${releaseDate.year.toString().padLeft(4, '0')}-${releaseDate.month.toString().padLeft(2, '0')}-${releaseDate.day.toString().padLeft(2, '0')}",
+    "softcore": softcore,
+    "video": video,
+    "vote_average": voteAverage,
+    "vote_count": voteCount,
+  };
+}
+
+
