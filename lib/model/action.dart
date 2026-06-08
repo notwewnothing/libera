@@ -39,7 +39,7 @@ class ActionDiscover {
 
 class Result {
   bool adult;
-  String backdropPath;
+  String? backdropPath;
   List<int> genreIds;
   int id;
   String title;
@@ -47,16 +47,15 @@ class Result {
   String originalTitle;
   String overview;
   double popularity;
-  String posterPath;
-  DateTime releaseDate;
-  bool softcore;
+  String? posterPath;
+  DateTime? releaseDate;
   bool video;
   double voteAverage;
   int voteCount;
 
   Result({
     required this.adult,
-    required this.backdropPath,
+    this.backdropPath,
     required this.genreIds,
     required this.id,
     required this.title,
@@ -64,30 +63,32 @@ class Result {
     required this.originalTitle,
     required this.overview,
     required this.popularity,
-    required this.posterPath,
-    required this.releaseDate,
-    required this.softcore,
+    this.posterPath,
+    this.releaseDate,
     required this.video,
     required this.voteAverage,
     required this.voteCount,
   });
 
   factory Result.fromJson(Map<String, dynamic> json) => Result(
-    adult: json["adult"],
+    adult: json["adult"] ?? false,
     backdropPath: json["backdrop_path"],
-    genreIds: List<int>.from(json["genre_ids"].map((x) => x)),
-    id: json["id"],
-    title: json["title"],
-    originalLanguage: json["original_language"],
-    originalTitle: json["original_title"],
-    overview: json["overview"],
-    popularity: json["popularity"]?.toDouble(),
+    genreIds: json["genre_ids"] != null
+        ? List<int>.from(json["genre_ids"].map((x) => x))
+        : [],
+    id: json["id"] ?? 0,
+    title: json["title"] ?? "",
+    originalLanguage: json["original_language"] ?? "",
+    originalTitle: json["original_title"] ?? "",
+    overview: json["overview"] ?? "",
+    popularity: json["popularity"]?.toDouble() ?? 0.0,
     posterPath: json["poster_path"],
-    releaseDate: DateTime.parse(json["release_date"]),
-    softcore: json["softcore"],
-    video: json["video"],
-    voteAverage: json["vote_average"]?.toDouble(),
-    voteCount: json["vote_count"],
+    releaseDate: json["release_date"] != null && json["release_date"] != ""
+        ? DateTime.tryParse(json["release_date"])
+        : null,
+    video: json["video"] ?? false,
+    voteAverage: json["vote_average"]?.toDouble() ?? 0.0,
+    voteCount: json["vote_count"] ?? 0,
   );
 
   Map<String, dynamic> toJson() => {
@@ -101,9 +102,9 @@ class Result {
     "overview": overview,
     "popularity": popularity,
     "poster_path": posterPath,
-    "release_date":
-        "${releaseDate.year.toString().padLeft(4, '0')}-${releaseDate.month.toString().padLeft(2, '0')}-${releaseDate.day.toString().padLeft(2, '0')}",
-    "softcore": softcore,
+    "release_date": releaseDate != null
+        ? "${releaseDate!.year.toString().padLeft(4, '0')}-${releaseDate!.month.toString().padLeft(2, '0')}-${releaseDate!.day.toString().padLeft(2, '0')}"
+        : null,
     "video": video,
     "vote_average": voteAverage,
     "vote_count": voteCount,

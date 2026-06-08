@@ -4,6 +4,7 @@ import 'package:libera/model/action.dart';
 import 'package:libera/model/drama.dart';
 import 'package:libera/model/horror.dart';
 import 'package:libera/model/comedy.dart';
+import 'package:libera/model/search_model.dart';
 import 'package:libera/model/trending_all.dart';
 import 'package:libera/model/movie_details.dart';
 import 'package:libera/model/movie_video.dart';
@@ -303,6 +304,24 @@ class ApiServices {
       }
     } catch (e) {
       throw Exception("Error while Fetching Similar TV Shows : $e ");
+    }
+  }
+
+  // search
+
+  Future<Search?> fetchSearch(String query) async {
+    try {
+      final endPoint = "search/multi?query=${Uri.encodeQueryComponent(query)}&";
+      final apiUrl = "$baseUrl$endPoint$key";
+      final response = await get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        return searchFromJson(response.body);
+      } else {
+        throw Exception("Failed to Search");
+      }
+    } catch (e) {
+      throw Exception("Error while Searching : $e ");
     }
   }
 }

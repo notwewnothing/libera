@@ -71,8 +71,10 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     try {
       final data = await apiServices.fetchSimilarTvShows(widget.tvid);
       if (data == null || !mounted) return;
-      setState(() => _similar =
-          data.results.where((m) => m.posterPath != null).toList());
+      setState(
+        () =>
+            _similar = data.results.where((m) => m.posterPath != null).toList(),
+      );
     } catch (e) {
       debugPrint("Failed to fetch similar tv shows: $e");
     }
@@ -195,7 +197,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
             final genreNames = show.genres.map((g) => g.name).toList();
             final seasonsLabel = show.numberOfSeasons > 0
                 ? "${show.numberOfSeasons} "
-                    "${show.numberOfSeasons == 1 ? "Season" : "Seasons"}"
+                      "${show.numberOfSeasons == 1 ? "Season" : "Seasons"}"
                 : null;
 
             return Column(
@@ -266,8 +268,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                 // Cast slider
                 if (_cast.isNotEmpty) CastSection(cast: _cast),
                 // Similar tv shows slider
-                if (_similar.isNotEmpty)
-                  _SimilarSection(items: _similar),
+                if (_similar.isNotEmpty) _SimilarSection(items: _similar),
                 const SizedBox(height: 30),
               ],
             );

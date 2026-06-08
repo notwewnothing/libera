@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:libera/screens/home.dart';
+import 'package:libera/screens/search.dart';
 
 class AppNavbarScreen extends StatelessWidget {
   const AppNavbarScreen({super.key});
@@ -24,7 +25,7 @@ class AppNavbarScreen extends StatelessWidget {
             indicatorColor: Colors.transparent,
           ),
         ),
-        body: TabBarView(children: [HomeScreen(), Scaffold(), Scaffold()]),
+        body: TabBarView(children: [HomeScreen(), SearchScreen(), Scaffold()]),
       ),
     );
   }
