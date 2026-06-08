@@ -83,18 +83,33 @@ class _SearchScreenState extends State<SearchScreen> {
                                             imageUrl:
                                                 "$imageUrl${searched.backdropPath}",
                                             fit: BoxFit.contain,
-                                            width: 90,
-                                            height: 90,
+                                            width: 150,
                                           ),
-                                          Text(
-                                            searched.title.toString(),
-                                            style: TextStyle(
-                                              color: Colors.white,
+                                          SizedBox(width: 20),
+                                          Flexible(
+                                            child: Text(
+                                              searched.name ??
+                                                  searched.title ??
+                                                  '',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                                color: Colors.white,
+                                              ),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
+                                  ),
+                                ),
+                                Positioned(
+                                  child: Icon(
+                                    Icons.play_circle,
+                                    color: Colors.white,
+                                    size: 27,
                                   ),
                                 ),
                               ],

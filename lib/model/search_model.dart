@@ -23,7 +23,11 @@ class Search {
 
   factory Search.fromJson(Map<String, dynamic> json) => Search(
     page: json["page"],
-    results: List<Result>.from(json["results"].map((x) => Result.fromJson(x))),
+    results: List<Result>.from(
+      (json["results"] as List)
+          .where((x) => x["media_type"] == "movie" || x["media_type"] == "tv")
+          .map((x) => Result.fromJson(x)),
+    ),
     totalPages: json["total_pages"],
     totalResults: json["total_results"],
   );
@@ -49,7 +53,7 @@ class Result {
   List<int> genreIds;
   double popularity;
   String? firstAirDate;
-  bool softcore;
+  bool? softcore;
   double voteAverage;
   int voteCount;
   List<String>? originCountry;
@@ -71,7 +75,7 @@ class Result {
     required this.genreIds,
     required this.popularity,
     this.firstAirDate,
-    required this.softcore,
+    this.softcore,
     required this.voteAverage,
     required this.voteCount,
     this.originCountry,
@@ -90,7 +94,7 @@ class Result {
     overview: json["overview"],
     posterPath: json["poster_path"],
     mediaType: mediaTypeValues.map[json["media_type"]]!,
-    originalLanguage: originalLanguageValues.map[json["original_language"]]!,
+    originalLanguage: originalLanguageValues.map[json["original_language"]] ?? OriginalLanguage.EN,
     genreIds: List<int>.from(json["genre_ids"].map((x) => x)),
     popularity: json["popularity"]?.toDouble(),
     firstAirDate: json["first_air_date"],
