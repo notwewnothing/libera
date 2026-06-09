@@ -209,7 +209,7 @@ class ApiServices {
   // similar movies
   Future<MediaList?> fetchSimilarMovies(int movieId) async {
     try {
-      final endPoint = "movie/$movieId/similar?";
+      final endPoint = "movie/$movieId/recommendations?";
       final apiUrl = "$baseUrl$endPoint$key";
       final response = await get(Uri.parse(apiUrl));
 
@@ -294,7 +294,7 @@ class ApiServices {
   // similar tv shows
   Future<MediaList?> fetchSimilarTvShows(int tvId) async {
     try {
-      final endPoint = "tv/$tvId/similar?";
+      final endPoint = "tv/$tvId/recommendations?";
       final apiUrl = "$baseUrl$endPoint$key";
       final response = await get(Uri.parse(apiUrl));
 

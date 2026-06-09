@@ -113,6 +113,8 @@ class FeaturedLandscapeCard extends StatelessWidget {
   final VoidCallback onTap;
   final double? width;
   final double height;
+  // Tall cards crop landscape backdrops too hard; let them use the poster.
+  final bool preferPoster;
 
   const FeaturedLandscapeCard({
     super.key,
@@ -120,6 +122,7 @@ class FeaturedLandscapeCard extends StatelessWidget {
     required this.onTap,
     this.width,
     this.height = 210,
+    this.preferPoster = false,
   });
 
   @override
@@ -135,7 +138,9 @@ class FeaturedLandscapeCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             poster(
-              item.backdropPath ?? item.posterPath,
+              preferPoster
+                  ? item.posterPath ?? item.backdropPath
+                  : item.backdropPath ?? item.posterPath,
               fallbackIcon: Icons.movie,
             ),
             Container(

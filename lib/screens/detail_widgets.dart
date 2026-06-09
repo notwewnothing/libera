@@ -2,10 +2,13 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
+import 'package:libera/model/movie_video.dart';
 import 'package:libera/model/season_details.dart';
 import 'package:libera/model/watch_provider.dart';
+import 'package:libera/screens/trailer_player.dart';
 
 // Shared building blocks for the movie & TV show detail screens.
 
@@ -160,68 +163,262 @@ class MetaRow extends StatelessWidget {
   }
 }
 
-class DetailActionButtons extends StatelessWidget {
+// Frosted pill grouping the top-right header actions (download, mute).
+class BlurPill extends StatelessWidget {
+  final List<Widget> children;
+  const BlurPill({super.key, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: children),
+        ),
+      ),
+    );
+  }
+}
+
+// Centered Play pill + circular "+" (My List), Apple TV style.
+class HeroActionButtons extends StatelessWidget {
+  final String playLabel;
   final VoidCallback? onPlay;
   final VoidCallback? onMyList;
-  const DetailActionButtons({super.key, this.onPlay, this.onMyList});
+
+  const HeroActionButtons({
+    super.key,
+    this.playLabel = "Play",
+    this.onPlay,
+    this.onMyList,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: onPlay,
-            child: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(50),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.play_arrow, color: Colors.black, size: 28),
-                  SizedBox(width: 4),
-                  Text(
-                    "Play",
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+        GestureDetector(
+          onTap: onPlay,
+          child: Container(
+            height: 50,
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.black,
+                  size: 28,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  playLabel,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: GestureDetector(
-            onTap: onMyList,
+        const SizedBox(width: 14),
+        GestureDetector(
+          onTap: onMyList,
+          child: Container(
+            height: 50,
+            width: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey.shade800.withValues(alpha: 0.75),
+            ),
+            child: const Icon(Icons.add, color: Colors.white, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Description clamped to a few lines with an Apple TV-style MORE chip.
+class ExpandableOverview extends StatefulWidget {
+  final String text;
+  const ExpandableOverview({super.key, required this.text});
+
+  @override
+  State<ExpandableOverview> createState() => _ExpandableOverviewState();
+}
+
+class _ExpandableOverviewState extends State<ExpandableOverview> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final showMore = !_expanded && widget.text.length > 140;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.text,
+          maxLines: _expanded ? null : 3,
+          overflow: _expanded ? null : TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 15,
+            height: 1.4,
+            color: Colors.white.withValues(alpha: 0.75),
+          ),
+        ),
+        if (showMore) ...[
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => setState(() => _expanded = true),
             child: Container(
-              height: 50,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.grey.shade800,
-                borderRadius: BorderRadius.circular(50),
+                color: Colors.grey.shade800.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add, color: Colors.white, size: 26),
-                  SizedBox(width: 4),
-                  Text(
-                    "My List",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+              child: const Text(
+                "MORE",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
               ),
             ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class TrailersSection extends StatelessWidget {
+  final List<MovieVideoResult> videos;
+  const TrailersSection({super.key, required this.videos});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(title: "Trailers"),
+        SizedBox(
+          height: 170,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: videos.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final video = videos[index];
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TrailerPlayerScreen(
+                      title: video.name,
+                      youtubeKey: video.key,
+                    ),
+                  ),
+                ),
+                child: Container(
+                  width: 300,
+                  clipBehavior: Clip.antiAlias,
+                  decoration:
+                      BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CachedNetworkImage(
+                        imageUrl:
+                            "https://img.youtube.com/vi/${video.key}/hqdefault.jpg",
+                        fit: BoxFit.cover,
+                        placeholder: (_, _) =>
+                            Container(color: Colors.grey.shade900),
+                        errorWidget: (_, _, _) => Container(
+                          color: Colors.grey.shade900,
+                          child: const Icon(
+                            Icons.play_circle_outline,
+                            color: Colors.white24,
+                            size: 40,
+                          ),
+                        ),
+                      ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.center,
+                            colors: [
+                              Colors.black.withValues(alpha: 0.75),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        bottom: 10,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              video.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.play_arrow,
+                                  color: Colors.white70,
+                                  size: 15,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  video.type,
+                                  style: TextStyle(
+                                    color:
+                                        Colors.white.withValues(alpha: 0.6),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -238,17 +435,7 @@ class CastSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(left: 15, bottom: 10),
-          child: Text(
-            "Cast",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
+        const SectionHeader(title: "Cast"),
         SizedBox(
           height: 170,
           child: ListView.builder(

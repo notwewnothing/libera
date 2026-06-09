@@ -49,7 +49,7 @@ class Result {
   String originalLanguage;
   List<int> genreIds;
   double popularity;
-  DateTime firstAirDate;
+  DateTime? firstAirDate;
   bool softcore;
   double voteAverage;
   int voteCount;
@@ -67,7 +67,7 @@ class Result {
     required this.originalLanguage,
     required this.genreIds,
     required this.popularity,
-    required this.firstAirDate,
+    this.firstAirDate,
     required this.softcore,
     required this.voteAverage,
     required this.voteCount,
@@ -86,7 +86,9 @@ class Result {
     originalLanguage: json["original_language"] ?? "",
     genreIds: List<int>.from(json["genre_ids"].map((x) => x)),
     popularity: json["popularity"]?.toDouble(),
-    firstAirDate: DateTime.parse(json["first_air_date"]),
+    firstAirDate: json["first_air_date"] != null && json["first_air_date"].toString().isNotEmpty
+        ? DateTime.tryParse(json["first_air_date"])
+        : null,
     softcore: json["softcore"],
     voteAverage: json["vote_average"]?.toDouble(),
     voteCount: json["vote_count"],
@@ -107,8 +109,8 @@ class Result {
     "original_language": originalLanguage,
     "genre_ids": List<dynamic>.from(genreIds.map((x) => x)),
     "popularity": popularity,
-    "first_air_date":
-        "${firstAirDate.year.toString().padLeft(4, '0')}-${firstAirDate.month.toString().padLeft(2, '0')}-${firstAirDate.day.toString().padLeft(2, '0')}",
+    "first_air_date": firstAirDate == null ? null
+        : "${firstAirDate!.year.toString().padLeft(4, '0')}-${firstAirDate!.month.toString().padLeft(2, '0')}-${firstAirDate!.day.toString().padLeft(2, '0')}",
     "softcore": softcore,
     "vote_average": voteAverage,
     "vote_count": voteCount,

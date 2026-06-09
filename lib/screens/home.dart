@@ -1,16 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:libera/common/utils.dart';
-import 'package:libera/model/action.dart';
-import 'package:libera/model/comedy.dart';
-import 'package:libera/model/drama.dart';
-import 'package:libera/model/horror.dart';
-import 'package:libera/model/trending_all.dart';
-import 'package:libera/model/popular.dart';
-import 'package:libera/model/tendingshows.dart';
-import 'package:libera/screens/Moviedetailed.dart';
-import 'package:libera/screens/Tvshowdetailed.dart';
+import 'package:libera/common/adapters.dart';
+import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/navigation.dart';
+import 'package:libera/common/provider_badge.dart';
+import 'package:libera/screens/top10_screen.dart';
 import 'package:libera/services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,23 +15,61 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ApiServices apiServices = ApiServices();
-  late Future<TrendingAll?> trendingData;
-  late Future<PopularMovies?> popularMovies;
-  late Future<TrendingShows?> trendingShows;
-  late Future<ActionDiscover?> actionMovies;
-  late Future<ComedyDiscover?> comedyMovies;
-  late Future<HorrorDiscover?> horrorMovies;
-  late Future<DramaDiscover?> dramaMovies;
+
+  late Future<List<MediaCardData>> trendingCards;
+  late Future<List<MediaCardData>> topMovies;
+  late Future<List<MediaCardData>> topShows;
+  late Future<List<MediaCardData>> actionMovies;
+  late Future<List<MediaCardData>> comedyMovies;
+  late Future<List<MediaCardData>> horrorMovies;
+  late Future<List<MediaCardData>> dramaMovies;
+
+  final PageController _heroController = PageController();
+  int _heroPage = 0;
+
+  static const int _heroCount = 8;
+
   @override
   void initState() {
-    trendingData = apiServices.fetchTrending();
-    popularMovies = apiServices.popularMovies();
-    trendingShows = apiServices.trendingshows();
-    actionMovies = apiServices.actionMovies();
-    comedyMovies = apiServices.comedyMovies();
-    horrorMovies = apiServices.horrorMovies();
-    dramaMovies = apiServices.dramaMovies();
     super.initState();
+    trendingCards = apiServices.fetchTrending().then(
+      (d) => (d?.results ?? [])
+          .where((e) => e.posterPath != null)
+          .map(trendingToCard)
+          .toList(),
+    );
+    topMovies = apiServices.popularMovies().then(
+      (d) => (d?.results ?? []).map(popularToCard).toList(),
+    );
+    topShows = apiServices.trendingshows().then(
+      (d) => (d?.results ?? []).map(showToCard).toList(),
+    );
+    actionMovies = apiServices.actionMovies().then(
+      (d) => (d?.results ?? [])
+          .map((r) => actionToCard(r, genreLabel: "Action"))
+          .toList(),
+    );
+    comedyMovies = apiServices.comedyMovies().then(
+      (d) => (d?.results ?? [])
+          .map((r) => comedyToCard(r, genreLabel: "Comedy"))
+          .toList(),
+    );
+    horrorMovies = apiServices.horrorMovies().then(
+      (d) => (d?.results ?? [])
+          .map((r) => horrorToCard(r, genreLabel: "Horror"))
+          .toList(),
+    );
+    dramaMovies = apiServices.dramaMovies().then(
+      (d) => (d?.results ?? [])
+          .map((r) => dramaToCard(r, genreLabel: "Drama"))
+          .toList(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _heroController.dispose();
+    super.dispose();
   }
 
   @override
@@ -49,261 +80,429 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 50),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              child: Row(
-                children: [
-                  Text(
-                    "DIH 🥀",
-                    style: GoogleFonts.dangrek(
-                      textStyle: const TextStyle(
-                        color: Color.fromARGB(255, 255, 50, 50),
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(Icons.search, color: Colors.white),
-                  ),
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(Icons.settings, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            // Main Box
-            SizedBox(height: 10),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    height: 530,
-                    width: double.maxFinite,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade800),
-                    ),
-                    child: FutureBuilder<TrendingAll?>(
-                      future: trendingData,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator());
-                        } else if (snapshot.hasError) {
-                          return Center(
-                            child: Text("Error: ${snapshot.error}"),
-                          );
-                        } else if (snapshot.data == null) {
-                          return Center(child: Text("No Data"));
-                        } else if (snapshot.hasData) {
-                          final items = snapshot.data!.results;
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: PageView.builder(
-                              itemCount: items.length,
-                              scrollDirection: Axis.horizontal,
-                              itemBuilder: (context, index) {
-                                final item = items[index];
-                                return GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => item.isMovie
-                                            ? MovieDetailedScreen(
-                                                movieid: item.id,
-                                              )
-                                            : TvShowDetailedScreen(
-                                                tvid: item.id,
-                                              ),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    height: 530,
-                                    width: 388,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20),
-                                      color: Colors.white,
-                                      image: DecorationImage(
-                                        fit: BoxFit.cover,
-                                        image: CachedNetworkImageProvider(
-                                          "$imageUrl${item.posterPath}",
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        } else {
-                          return Center(child: Text("Problem Fetching Data"));
-                        }
-                      },
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -40,
-                    left: 17,
-
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 30,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            height: 50,
-                            width: 150,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.play_arrow,
-                                  color: Colors.black,
-                                  size: 30,
-                                ),
-                                Text(
-                                  "Play",
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(width: 15),
-                          Container(
-                            height: 50,
-                            width: 150,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade800,
-                              borderRadius: BorderRadius.circular(50),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add, color: Colors.white, size: 30),
-                                Text(
-                                  "My List",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 30),
-            moviesTypes(future: popularMovies, movieType: "Trending Movies"),
-            moviesTypes(
-              future: trendingShows,
-              movieType: "Trending Shows",
-              isTvShow: true,
-            ),
-            moviesTypes(future: actionMovies, movieType: "Action"),
-            moviesTypes(future: comedyMovies, movieType: "Comedy"),
-            moviesTypes(future: horrorMovies, movieType: "Horror"),
-            moviesTypes(future: dramaMovies, movieType: "Drama"),
+            _hero(context),
+            _numberedRow("Top 10 Movies", topMovies),
+            _numberedRow("Top 10 TV Shows", topShows),
+            _nextWatch(context),
+            _posterRow("Action", actionMovies),
+            _posterRow("Comedy", comedyMovies),
+            _posterRow("Horror", horrorMovies),
+            _posterRow("Drama", dramaMovies),
+            // Clears the floating nav pill.
+            const SizedBox(height: 110),
           ],
         ),
       ),
     );
   }
 
-  Padding moviesTypes({
-    required Future future,
-    required String movieType,
-    bool isTvShow = false,
-  }) {
-    return Padding(
-      padding: EdgeInsets.only(left: 10, top: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  // ---------------------------------------------------------------- hero
+
+  Widget _hero(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final topPad = MediaQuery.paddingOf(context).top;
+    return SizedBox(
+      height: size.height * 0.72,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Text(
-            movieType,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: Colors.white,
-            ),
-          ),
-          SizedBox(
-            height: 180,
-            width: double.maxFinite,
-            child: FutureBuilder(
-              future: future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text("Error: ${snapshot.error}"));
-                } else if (snapshot.data == null) {
-                  return Center(child: Text("No Data"));
-                } else if (snapshot.hasData) {
-                  final popularMovies = snapshot.data!.results;
-                  return ListView.builder(
-                    itemCount: popularMovies.length,
-                    scrollDirection: Axis.horizontal,
+          FutureBuilder<List<MediaCardData>>(
+            future: trendingCards,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white24),
+                );
+              }
+              final items =
+                  (snapshot.data ?? []).take(_heroCount).toList();
+              if (items.isEmpty) {
+                return Center(
+                  child: Text(
+                    snapshot.hasError ? "Error: ${snapshot.error}" : "No Data",
+                    style: const TextStyle(color: Colors.white54),
+                  ),
+                );
+              }
+              final current = items[_heroPage.clamp(0, items.length - 1)];
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  PageView.builder(
+                    controller: _heroController,
+                    itemCount: items.length,
+                    onPageChanged: (i) => setState(() => _heroPage = i),
                     itemBuilder: (context, index) {
-                      final movie = popularMovies[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => isTvShow
-                                    ? TvShowDetailedScreen(tvid: movie.id)
-                                    : MovieDetailedScreen(movieid: movie.id),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 130,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(5),
-                              image: DecorationImage(
-                                fit: BoxFit.cover,
-                                image: CachedNetworkImageProvider(
-                                  "$imageUrl${movie.posterPath}",
-                                ),
-                              ),
-                            ),
-                          ),
+                      final item = items[index];
+                      return GestureDetector(
+                        onTap: () => openDetail(
+                          context,
+                          id: item.id,
+                          isMovie: item.isMovie,
                         ),
+                        child: poster(item.posterPath,
+                            fallbackIcon: Icons.movie),
                       );
                     },
+                  ),
+                  IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black,
+                            Colors.black.withValues(alpha: 0.55),
+                            Colors.transparent,
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.45),
+                          ],
+                          stops: const [0, 0.12, 0.38, 0.88, 1],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 14,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IgnorePointer(child: _heroMeta(current)),
+                        const SizedBox(height: 16),
+                        _heroButtons(current),
+                        const SizedBox(height: 18),
+                        IgnorePointer(child: _heroDots(items.length)),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          Positioned(
+            top: topPad + 4,
+            left: 20,
+            child: const IgnorePointer(
+              child: Text(
+                "Home",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                  shadows: [Shadow(color: Colors.black54, blurRadius: 12)],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroMeta(MediaCardData item) {
+    final label = [item.typeLabel, item.genreLabel]
+        .where((e) => e != null && e.isNotEmpty)
+        .join("  ·  ");
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ProviderBadge(id: item.id, isMovie: item.isMovie, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.9),
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _heroButtons(MediaCardData item) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: () =>
+              openDetail(context, id: item.id, isMovie: item.isMovie),
+          child: Container(
+            height: 50,
+            width: 160,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.play_arrow_rounded, color: Colors.black, size: 28),
+                SizedBox(width: 4),
+                Text(
+                  "Play",
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        GestureDetector(
+          onTap: () =>
+              openDetail(context, id: item.id, isMovie: item.isMovie),
+          child: Container(
+            height: 50,
+            width: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.grey.shade800.withValues(alpha: 0.75),
+            ),
+            child: const Icon(Icons.add, color: Colors.white, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _heroDots(int count) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (i) {
+        final active = i == _heroPage;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.symmetric(horizontal: 3.5),
+          height: active ? 8 : 6,
+          width: active ? 8 : 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.35),
+          ),
+        );
+      }),
+    );
+  }
+
+  // ---------------------------------------------------------------- rows
+
+  Widget _numberedRow(String title, Future<List<MediaCardData>> future) {
+    return FutureBuilder<List<MediaCardData>>(
+      future: future,
+      builder: (context, snapshot) {
+        final items =
+            (snapshot.data ?? []).take(10).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              title: title,
+              onTap: items.isEmpty
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              Top10Screen(title: title, items: items),
+                        ),
+                      ),
+            ),
+            SizedBox(
+              height: 256,
+              child: _rowBody(
+                snapshot,
+                items,
+                itemBuilder: (context, index) =>
+                    _NumberedCard(rank: index + 1, item: items[index]),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _posterRow(String title, Future<List<MediaCardData>> future) {
+    return FutureBuilder<List<MediaCardData>>(
+      future: future,
+      builder: (context, snapshot) {
+        final items = snapshot.data ?? [];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              title: title,
+              onTap: items.isEmpty
+                  ? null
+                  : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              Top10Screen(title: title, items: items),
+                        ),
+                      ),
+            ),
+            SizedBox(
+              height: 180,
+              child: _rowBody(
+                snapshot,
+                items,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return PosterCard(
+                    item: item,
+                    onTap: () => openDetail(
+                      context,
+                      id: item.id,
+                      isMovie: item.isMovie,
+                    ),
                   );
-                } else {
-                  return Center(child: Text("Problem Fetching Data"));
-                }
-              },
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _rowBody(
+    AsyncSnapshot snapshot,
+    List<MediaCardData> items, {
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white24),
+      );
+    }
+    if (items.isEmpty) {
+      return Center(
+        child: Text(
+          snapshot.hasError ? "Error: ${snapshot.error}" : "No Data",
+          style: const TextStyle(color: Colors.white54),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      scrollDirection: Axis.horizontal,
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 12),
+      itemBuilder: itemBuilder,
+    );
+  }
+
+  Widget _nextWatch(BuildContext context) {
+    return FutureBuilder<List<MediaCardData>>(
+      future: trendingCards,
+      builder: (context, snapshot) {
+        final items =
+            (snapshot.data ?? []).skip(_heroCount).take(6).toList();
+        if (items.isEmpty) return const SizedBox.shrink();
+        final cardWidth = MediaQuery.sizeOf(context).width - 56;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(title: "Your Next Watch"),
+            SizedBox(
+              height: 420,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return FeaturedLandscapeCard(
+                    item: item,
+                    width: cardWidth,
+                    height: 420,
+                    preferPoster: true,
+                    onTap: () => openDetail(
+                      context,
+                      id: item.id,
+                      isMovie: item.isMovie,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _NumberedCard extends StatelessWidget {
+  final int rank;
+  final MediaCardData item;
+
+  const _NumberedCard({required this.rank, required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final caption = item.genreLabel ?? item.typeLabel ?? "";
+    return SizedBox(
+      width: 150,
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              PosterCard(
+                item: item,
+                width: 150,
+                onTap: () => openDetail(
+                  context,
+                  id: item.id,
+                  isMovie: item.isMovie,
+                ),
+              ),
+              Positioned(
+                top: 2,
+                left: 10,
+                child: IgnorePointer(
+                  child: Text(
+                    "$rank",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.8),
+                          blurRadius: 10,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.55),
+              fontSize: 13,
             ),
           ),
         ],
