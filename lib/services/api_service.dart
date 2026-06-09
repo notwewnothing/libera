@@ -324,4 +324,40 @@ class ApiServices {
       throw Exception("Error while Searching : $e ");
     }
   }
+
+  // discover movies for any genre id (shape matches the action discover model)
+  Future<ActionDiscover?> discoverByGenre(int genreId) async {
+    try {
+      final endPoint =
+          "discover/movie?sort_by=popularity.desc&with_genres=$genreId&";
+      final apiUrl = "$baseUrl$endPoint$key";
+      final response = await get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        return actionDiscoverFromJson(response.body);
+      } else {
+        throw Exception("Failed to Load genre");
+      }
+    } catch (e) {
+      throw Exception("Error while Fetching genre : $e ");
+    }
+  }
+
+  // multi search (movies + tv) — reuses the trending list shape
+  Future<TrendingAll?> searchMulti(String query) async {
+    try {
+      final endPoint =
+          "search/multi?query=${Uri.encodeQueryComponent(query)}&include_adult=false&";
+      final apiUrl = "$baseUrl$endPoint$key";
+      final response = await get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        return trendingAllFromJson(response.body);
+      } else {
+        throw Exception("Failed to Search");
+      }
+    } catch (e) {
+      throw Exception("Error while Searching : $e ");
+    }
+  }
 }
