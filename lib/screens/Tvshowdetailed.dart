@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
 import 'package:libera/model/media_list.dart';
+import 'package:libera/model/season_details.dart';
 import 'package:libera/model/tv_details.dart';
 import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/detail_widgets.dart';
+import 'package:libera/screens/player_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -26,6 +28,10 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
   List<CastMember> _cast = [];
   List<MediaItem> _similar = [];
 
+  List<Episode> _episodes = [];
+  int _selectedSeason = 1;
+  bool _episodesLoading = true;
+
   bool _isVideoReady = false;
   bool _showVideo = false;
   bool isMuted = true;
@@ -38,6 +44,46 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     _fetchProviders();
     _fetchCast();
     _fetchSimilar();
+    _fetchEpisodes(_selectedSeason);
+  }
+
+  void _fetchEpisodes(int season) async {
+    setState(() => _episodesLoading = true);
+    try {
+      final data = await apiServices.fetchSeasonDetails(widget.tvid, season);
+      if (!mounted) return;
+      setState(() {
+        _episodes = data?.episodes ?? [];
+        _episodesLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Failed to fetch episodes: $e");
+      if (mounted) setState(() => _episodesLoading = false);
+    }
+  }
+
+  void _onSeasonChanged(int season) {
+    setState(() {
+      _selectedSeason = season;
+      _episodes = [];
+    });
+    _fetchEpisodes(season);
+  }
+
+  void _play(String showName, int episodeNumber, String? episodeName) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen.episode(
+          tmdbId: widget.tvid,
+          season: _selectedSeason,
+          episode: episodeNumber,
+          title: episodeName != null && episodeName.isNotEmpty
+              ? "$showName · $episodeName"
+              : "$showName · S$_selectedSeason E$episodeNumber",
+        ),
+      ),
+    );
   }
 
   void _fetchProviders() async {
@@ -239,7 +285,15 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                       ),
                       const SizedBox(height: 16),
                       // Action buttons
-                      const DetailActionButtons(),
+                      DetailActionButtons(
+                        onPlay: () => _play(
+                          show.name,
+                          _episodes.isNotEmpty
+                              ? _episodes.first.episodeNumber
+                              : 1,
+                          _episodes.isNotEmpty ? _episodes.first.name : null,
+                        ),
+                      ),
                       const SizedBox(height: 18),
                       // Description
                       if (show.overview.isNotEmpty) ...[
@@ -264,6 +318,14 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                       ],
                     ],
                   ),
+                ),
+                SeasonEpisodesSection(
+                  seasonCount: show.numberOfSeasons,
+                  selectedSeason: _selectedSeason,
+                  episodes: _episodes,
+                  loading: _episodesLoading,
+                  onSeasonChanged: _onSeasonChanged,
+                  onPlayEpisode: (e) => _play(show.name, e.episodeNumber, e.name),
                 ),
                 // Cast slider
                 if (_cast.isNotEmpty) CastSection(cast: _cast),

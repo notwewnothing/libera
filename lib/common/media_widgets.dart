@@ -3,16 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:libera/common/provider_badge.dart';
 import 'package:libera/common/utils.dart';
 
-/// A model-agnostic view of a movie/TV item used by the home/library cards.
-/// Each data source converts its own model into this so the card widgets stay
-/// reusable.
 class MediaCardData {
   final int id;
   final String title;
   final String? posterPath;
   final String? backdropPath;
   final String? genreLabel;
-  final String? typeLabel; // "Movie" / "TV Show"
+  final String? typeLabel;
   final bool isMovie;
   final String overview;
 
@@ -28,7 +25,6 @@ class MediaCardData {
   });
 }
 
-/// "Section Title  ›" header used above every horizontal carousel.
 class SectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onTap;
@@ -63,8 +59,6 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-/// A rounded portrait poster card with the title's real streaming-provider
-/// badge in the corner (nothing shown when the title has no provider).
 class PosterCard extends StatelessWidget {
   final MediaCardData item;
   final double width;
@@ -83,8 +77,6 @@ class PosterCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      // Posters are bare images, which don't absorb hits on their own; without
-      // this the whole card swallows taps without firing onTap.
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: width,
@@ -116,8 +108,6 @@ class PosterCard extends StatelessWidget {
   }
 }
 
-/// A large landscape "featured" card (Continue Watching / Next Watch) with the
-/// title and type line burnt into the bottom-left over a gradient.
 class FeaturedLandscapeCard extends StatelessWidget {
   final MediaCardData item;
   final VoidCallback onTap;
@@ -212,7 +202,6 @@ class FeaturedLandscapeCard extends StatelessWidget {
   }
 }
 
-/// Shared poster/backdrop image with a graceful grey fallback.
 Widget poster(String? path, {required IconData fallbackIcon}) {
   if (path == null || path.isEmpty) {
     return Container(
@@ -223,8 +212,6 @@ Widget poster(String? path, {required IconData fallbackIcon}) {
   return CachedNetworkImage(
     imageUrl: "$imageUrl$path",
     fit: BoxFit.cover,
-    // Decode at poster-cell resolution instead of the full ~2000px original,
-    // otherwise a grid of these decodes huge bitmaps and stalls/ANRs the UI.
     memCacheWidth: 360,
     placeholder: (_, _) => Container(color: Colors.grey.shade900),
     errorWidget: (_, _, _) => Container(

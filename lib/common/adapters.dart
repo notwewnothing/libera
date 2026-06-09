@@ -1,6 +1,3 @@
-// Converts the various per-endpoint TMDB models into the shared [MediaCardData]
-// the home/library cards consume. Each model lives in its own file with a
-// class literally named `Result`, so the imports are prefixed to disambiguate.
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/genres.dart';
 import 'package:libera/model/trending_all.dart';

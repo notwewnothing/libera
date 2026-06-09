@@ -14,6 +14,7 @@ import 'package:libera/model/media_list.dart';
 import 'package:libera/model/tv_details.dart';
 import 'package:libera/model/popular.dart';
 import 'package:libera/model/tendingshows.dart';
+import 'package:libera/model/season_details.dart';
 
 var key = "api_key=$apikey";
 
@@ -325,7 +326,6 @@ class ApiServices {
     }
   }
 
-  // discover movies for any genre id (shape matches the action discover model)
   Future<ActionDiscover?> discoverByGenre(int genreId) async {
     try {
       final endPoint =
@@ -343,7 +343,6 @@ class ApiServices {
     }
   }
 
-  // multi search (movies + tv) — reuses the trending list shape
   Future<TrendingAll?> searchMulti(String query) async {
     try {
       final endPoint =
@@ -358,6 +357,22 @@ class ApiServices {
       }
     } catch (e) {
       throw Exception("Error while Searching : $e ");
+    }
+  }
+
+  Future<SeasonDetails?> fetchSeasonDetails(int tvId, int seasonNumber) async {
+    try {
+      final endPoint = "tv/$tvId/season/$seasonNumber?";
+      final apiUrl = "$baseUrl$endPoint$key";
+      final response = await get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        return seasonDetailsFromJson(response.body);
+      } else {
+        throw Exception("Failed to Load Season Details");
+      }
+    } catch (e) {
+      throw Exception("Error while Fetching Season Details : $e ");
     }
   }
 }

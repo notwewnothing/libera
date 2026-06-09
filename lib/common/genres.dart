@@ -1,7 +1,4 @@
-// Maps TMDB genre IDs to display names. Combines the movie and TV genre lists
-// so a single lookup works for any media item on the home/browse screens.
 const Map<int, String> kGenreNames = {
-  // Movie genres
   28: "Action",
   12: "Adventure",
   16: "Animation",
@@ -21,7 +18,6 @@ const Map<int, String> kGenreNames = {
   53: "Thriller",
   10752: "War",
   37: "Western",
-  // TV genres
   10759: "Action",
   10762: "Kids",
   10763: "News",
@@ -32,7 +28,6 @@ const Map<int, String> kGenreNames = {
   10768: "War & Politics",
 };
 
-/// First resolvable genre name for a list of TMDB genre IDs, or `null`.
 String? primaryGenre(List<int> genreIds) {
   for (final id in genreIds) {
     final name = kGenreNames[id];

@@ -5,10 +5,6 @@ import 'package:libera/services/api_service.dart';
 
 const _logoBase = "https://image.tmdb.org/t/p/w92";
 
-/// Lazily resolves and renders the primary streaming provider logo for a title
-/// (the small corner badge on artwork). Results are cached per id+type so a
-/// title is only ever fetched once, and nothing is shown when no provider
-/// exists for the region.
 class ProviderBadge extends StatefulWidget {
   final int id;
   final bool isMovie;
@@ -26,7 +22,6 @@ class ProviderBadge extends StatefulWidget {
 }
 
 class _ProviderBadgeState extends State<ProviderBadge> {
-  // Cache resolved providers and in-flight requests across the whole app.
   static final Map<String, StreamingProvider?> _cache = {};
   static final Map<String, Future<StreamingProvider?>> _inflight = {};
 
@@ -38,8 +33,6 @@ class _ProviderBadgeState extends State<ProviderBadge> {
   @override
   void initState() {
     super.initState();
-    // Initialize synchronously from cache (no setState during build, which the
-    // grid's widget recycling would otherwise trigger en masse).
     if (_cache.containsKey(_key)) {
       _provider = _cache[_key];
       _resolved = true;

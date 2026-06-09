@@ -4,7 +4,6 @@ import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/navigation.dart';
 import 'package:libera/common/utils.dart';
 
-/// Full-screen ranked list (e.g. "Top 10 Action"): rank · poster · title · type.
 class Top10Screen extends StatelessWidget {
   final String title;
   final List<MediaCardData> items;
@@ -67,7 +66,6 @@ class Top10Screen extends StatelessWidget {
                           ? CachedNetworkImage(
                               imageUrl: "$imageUrl${item.posterPath}",
                               fit: BoxFit.cover,
-                              // 56x80 slot — decode small, not the full original.
                               memCacheWidth: 168,
                               placeholder: (_, _) =>
                                   Container(color: Colors.grey.shade900),

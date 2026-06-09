@@ -7,7 +7,6 @@ import 'package:libera/common/navigation.dart';
 import 'package:libera/screens/top10_screen.dart';
 import 'package:libera/services/api_service.dart';
 
-/// Libera "Search" tab: a live search box over a grid of browse-by-genre tiles.
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -180,8 +179,6 @@ class _SearchScreenState extends State<SearchScreen> {
         return PosterCard(
           item: item,
           width: double.infinity,
-          // No provider badge here: one watch-provider request per visible
-          // result would flood the network and stall the grid as you type.
           showBadge: false,
           onTap: () =>
               openDetail(context, id: item.id, isMovie: item.isMovie),
@@ -241,7 +238,6 @@ class _CategoryTile extends StatelessWidget {
         ),
       );
     } catch (_) {
-      // Ignore network errors on a browse tap.
     }
   }
 

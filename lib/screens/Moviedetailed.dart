@@ -6,6 +6,7 @@ import 'package:libera/model/media_list.dart';
 import 'package:libera/model/movie_details.dart';
 import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/detail_widgets.dart';
+import 'package:libera/screens/player_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -233,7 +234,19 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                       ),
                       const SizedBox(height: 16),
                       // Action buttons
-                      const DetailActionButtons(),
+                      DetailActionButtons(
+                        onPlay: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PlayerScreen.movie(
+                                tmdbId: movie.id,
+                                title: movie.title,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                       const SizedBox(height: 18),
                       // Description
                       if (movie.overview.isNotEmpty) ...[
