@@ -83,6 +83,9 @@ class PosterCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      // Posters are bare images, which don't absorb hits on their own; without
+      // this the whole card swallows taps without firing onTap.
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: width,
         child: AspectRatio(

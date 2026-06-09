@@ -180,6 +180,9 @@ class _SearchScreenState extends State<SearchScreen> {
         return PosterCard(
           item: item,
           width: double.infinity,
+          // No provider badge here: one watch-provider request per visible
+          // result would flood the network and stall the grid as you type.
+          showBadge: false,
           onTap: () =>
               openDetail(context, id: item.id, isMovie: item.isMovie),
         );

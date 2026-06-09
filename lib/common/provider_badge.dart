@@ -38,17 +38,17 @@ class _ProviderBadgeState extends State<ProviderBadge> {
   @override
   void initState() {
     super.initState();
-    _resolve();
+    // Initialize synchronously from cache (no setState during build, which the
+    // grid's widget recycling would otherwise trigger en masse).
+    if (_cache.containsKey(_key)) {
+      _provider = _cache[_key];
+      _resolved = true;
+    } else {
+      _resolve();
+    }
   }
 
   Future<void> _resolve() async {
-    if (_cache.containsKey(_key)) {
-      setState(() {
-        _provider = _cache[_key];
-        _resolved = true;
-      });
-      return;
-    }
     final provider = await (_inflight[_key] ??= _fetch());
     if (!mounted) return;
     setState(() {
