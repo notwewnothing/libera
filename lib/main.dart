@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:libera/screens/intro.dart';
+import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/watched_service.dart';
+import 'package:libera/services/watchlist_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Future.wait([
+    WatchlistService.instance.init(),
+    WatchedService.instance.init(),
+    ContinueWatchingService.instance.init(),
+  ]);
   runApp(const MyApp());
 }
 

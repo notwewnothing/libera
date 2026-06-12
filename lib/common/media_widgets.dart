@@ -23,6 +23,28 @@ class MediaCardData {
     required this.isMovie,
     this.overview = "",
   });
+
+  factory MediaCardData.fromJson(Map<String, dynamic> json) => MediaCardData(
+    id: json["id"],
+    title: json["title"] ?? "",
+    posterPath: json["posterPath"],
+    backdropPath: json["backdropPath"],
+    genreLabel: json["genreLabel"],
+    typeLabel: json["typeLabel"],
+    isMovie: json["isMovie"] ?? true,
+    overview: json["overview"] ?? "",
+  );
+
+  Map<String, dynamic> toJson() => {
+    "id": id,
+    "title": title,
+    "posterPath": posterPath,
+    "backdropPath": backdropPath,
+    "genreLabel": genreLabel,
+    "typeLabel": typeLabel,
+    "isMovie": isMovie,
+    "overview": overview,
+  };
 }
 
 class SectionHeader extends StatelessWidget {

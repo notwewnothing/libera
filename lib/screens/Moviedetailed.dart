@@ -10,6 +10,9 @@ import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/detail_widgets.dart';
 import 'package:libera/screens/player_screen.dart';
 import 'package:libera/services/api_service.dart';
+import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/watched_service.dart';
+import 'package:libera/services/watchlist_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
@@ -155,7 +158,8 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
     );
   }
 
-  void _onPlay(MovieDetails movie) {
+  void _onPlay(MovieDetails movie, MediaCardData card) {
+    ContinueWatchingService.instance.record(card);
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -163,6 +167,38 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
           tmdbId: movie.id,
           title: movie.title,
         ),
+      ),
+    );
+  }
+
+  void _toggleWatched(MediaCardData card) async {
+    final added = await WatchedService.instance.toggleMovie(card);
+    // A finished movie has no business on the Continue Watching rail.
+    if (added) {
+      ContinueWatchingService.instance.remove(card.id, isMovie: true);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(added ? "Marked as watched" : "Marked as unwatched"),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _toggleMyList(MediaCardData card) async {
+    final added = await WatchlistService.instance.toggle(card);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          added ? "Added to your watchlist" : "Removed from your watchlist",
+        ),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -231,6 +267,16 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
             final genreNames = movie.genres.map((g) => g.name).toList();
             final metaLine =
                 ["Movie", ...genreNames.take(2)].join("  ·  ");
+            final card = MediaCardData(
+              id: movie.id,
+              title: movie.title,
+              posterPath: movie.posterPath,
+              backdropPath: movie.backdropPath,
+              genreLabel: genreNames.isNotEmpty ? genreNames.first : null,
+              typeLabel: "Movie",
+              isMovie: true,
+              overview: movie.overview,
+            );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,7 +287,8 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                   posterPath: movie.posterPath,
                   title: movie.title,
                   metaLine: metaLine,
-                  onPlay: () => _onPlay(movie),
+                  card: card,
+                  onPlay: () => _onPlay(movie, card),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
@@ -279,6 +326,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
     required String? posterPath,
     required String title,
     required String metaLine,
+    required MediaCardData card,
     required VoidCallback onPlay,
   }) {
     final topPad = MediaQuery.paddingOf(context).top;
@@ -394,7 +442,24 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  HeroActionButtons(onPlay: onPlay),
+                  ListenableBuilder(
+                    listenable: Listenable.merge([
+                      WatchlistService.instance,
+                      WatchedService.instance,
+                    ]),
+                    builder: (context, _) => HeroActionButtons(
+                      onPlay: onPlay,
+                      inMyList: WatchlistService.instance.contains(
+                        card.id,
+                        isMovie: true,
+                      ),
+                      onMyList: () => _toggleMyList(card),
+                      inWatched: WatchedService.instance.isMovieWatched(
+                        card.id,
+                      ),
+                      onWatched: () => _toggleWatched(card),
+                    ),
+                  ),
                 ],
               ),
             ),

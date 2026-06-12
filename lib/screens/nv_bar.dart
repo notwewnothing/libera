@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:libera/screens/home.dart';
 import 'package:libera/screens/search.dart';
+import 'package:libera/screens/watched_screen.dart';
+import 'package:libera/screens/watchlist_screen.dart';
+import 'package:libera/services/watched_service.dart';
+import 'package:libera/services/watchlist_service.dart';
 
 const _accent = Color(0xFF0A84FF);
 
@@ -106,6 +110,67 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
 class _LibraryScreen extends StatelessWidget {
   const _LibraryScreen();
 
+  Widget _menuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required Listenable listenable,
+    required String Function() subtitleBuilder,
+    required VoidCallback onTap,
+  }) {
+    return ListenableBuilder(
+      listenable: listenable,
+      builder: (context, _) => InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: _accent, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitleBuilder(),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: Colors.white.withValues(alpha: 0.4),
+                size: 24,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -127,6 +192,36 @@ class _LibraryScreen extends StatelessWidget {
                 ),
               ),
             ),
+            _menuItem(
+              context,
+              icon: Iconsax.save_2,
+              title: "Watchlist",
+              listenable: WatchlistService.instance,
+              subtitleBuilder: () {
+                final count = WatchlistService.instance.items.length;
+                if (count == 0) return "Nothing saved yet";
+                return "$count ${count == 1 ? "title" : "titles"}";
+              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WatchlistScreen()),
+              ),
+            ),
+            _menuItem(
+              context,
+              icon: Iconsax.eye,
+              title: "Watched",
+              listenable: WatchedService.instance,
+              subtitleBuilder: () {
+                final count = WatchedService.instance.titleCount;
+                if (count == 0) return "Nothing watched yet";
+                return "$count ${count == 1 ? "title" : "titles"}";
+              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const WatchedScreen()),
+              ),
+            ),
             Expanded(
               child: Center(
                 child: Column(
@@ -139,7 +234,7 @@ class _LibraryScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      "Your library is empty",
+                      "More library features coming soon",
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.6),
                         fontSize: 16,
@@ -148,7 +243,7 @@ class _LibraryScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "Movies and shows you add will appear here.",
+                      "Downloads and history will appear here.",
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.35),
                         fontSize: 13,

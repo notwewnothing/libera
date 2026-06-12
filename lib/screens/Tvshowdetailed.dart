@@ -11,6 +11,9 @@ import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/detail_widgets.dart';
 import 'package:libera/screens/player_screen.dart';
 import 'package:libera/services/api_service.dart';
+import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/watched_service.dart';
+import 'package:libera/services/watchlist_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
@@ -73,7 +76,17 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     _fetchEpisodes(season);
   }
 
-  void _play(String showName, int episodeNumber, String? episodeName) {
+  void _play(
+    MediaCardData card,
+    String showName,
+    int episodeNumber,
+    String? episodeName,
+  ) {
+    ContinueWatchingService.instance.record(
+      card,
+      season: _selectedSeason,
+      episode: episodeNumber,
+    );
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -202,6 +215,44 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
+  // Marking an episode watched is series progress, so it also surfaces the
+  // show on the home Continue Watching rail, queued at the next episode of
+  // the loaded season (or the marked one if it's the last).
+  void _toggleEpisodeWatched(MediaCardData card, Episode e) async {
+    final added = await WatchedService.instance.toggleEpisode(
+      card,
+      _selectedSeason,
+      e.episodeNumber,
+    );
+    if (!added) return;
+    final idx = _episodes.indexWhere(
+      (x) => x.episodeNumber == e.episodeNumber,
+    );
+    final next = (idx >= 0 && idx + 1 < _episodes.length)
+        ? _episodes[idx + 1].episodeNumber
+        : e.episodeNumber;
+    ContinueWatchingService.instance.record(
+      card,
+      season: _selectedSeason,
+      episode: next,
+    );
+  }
+
+  void _toggleMyList(MediaCardData card) async {
+    final added = await WatchlistService.instance.toggle(card);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          added ? "Added to your watchlist" : "Removed from your watchlist",
+        ),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -270,6 +321,16 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                 : null;
             final metaLine =
                 ["TV Show", ...genreNames.take(2)].join("  ·  ");
+            final card = MediaCardData(
+              id: show.id,
+              title: show.name,
+              posterPath: show.posterPath,
+              backdropPath: show.backdropPath,
+              genreLabel: genreNames.isNotEmpty ? genreNames.first : null,
+              typeLabel: "TV Show",
+              isMovie: false,
+              overview: show.overview,
+            );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,7 +341,9 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                   posterPath: show.posterPath,
                   title: show.name,
                   metaLine: metaLine,
+                  card: card,
                   onPlay: () => _play(
+                    card,
                     show.name,
                     _episodes.isNotEmpty ? _episodes.first.episodeNumber : 1,
                     _episodes.isNotEmpty ? _episodes.first.name : null,
@@ -304,14 +367,24 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                     ],
                   ),
                 ),
-                SeasonEpisodesSection(
-                  seasonCount: show.numberOfSeasons,
-                  selectedSeason: _selectedSeason,
-                  episodes: _episodes,
-                  loading: _episodesLoading,
-                  onSeasonChanged: _onSeasonChanged,
-                  onPlayEpisode: (e) =>
-                      _play(show.name, e.episodeNumber, e.name),
+                ListenableBuilder(
+                  listenable: WatchedService.instance,
+                  builder: (context, _) => SeasonEpisodesSection(
+                    seasonCount: show.numberOfSeasons,
+                    selectedSeason: _selectedSeason,
+                    episodes: _episodes,
+                    loading: _episodesLoading,
+                    onSeasonChanged: _onSeasonChanged,
+                    onPlayEpisode: (e) =>
+                        _play(card, show.name, e.episodeNumber, e.name),
+                    isEpisodeWatched: (e) => WatchedService.instance
+                        .isEpisodeWatched(
+                          card.id,
+                          _selectedSeason,
+                          e.episodeNumber,
+                        ),
+                    onToggleWatched: (e) => _toggleEpisodeWatched(card, e),
+                  ),
                 ),
                 if (_videos.isNotEmpty) TrailersSection(videos: _videos),
                 if (_cast.isNotEmpty) CastSection(cast: _cast),
@@ -331,6 +404,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     required String? posterPath,
     required String title,
     required String metaLine,
+    required MediaCardData card,
     required VoidCallback onPlay,
   }) {
     final topPad = MediaQuery.paddingOf(context).top;
@@ -446,9 +520,17 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  HeroActionButtons(
-                    playLabel: "Play First Episode",
-                    onPlay: onPlay,
+                  ListenableBuilder(
+                    listenable: WatchlistService.instance,
+                    builder: (context, _) => HeroActionButtons(
+                      playLabel: "Play First Episode",
+                      onPlay: onPlay,
+                      inMyList: WatchlistService.instance.contains(
+                        card.id,
+                        isMovie: false,
+                      ),
+                      onMyList: () => _toggleMyList(card),
+                    ),
                   ),
                 ],
               ),

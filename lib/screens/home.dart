@@ -3,8 +3,11 @@ import 'package:libera/common/adapters.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/navigation.dart';
 import 'package:libera/common/provider_badge.dart';
+import 'package:libera/screens/player_screen.dart';
 import 'package:libera/screens/top10_screen.dart';
 import 'package:libera/services/api_service.dart';
+import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/watchlist_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -81,8 +84,10 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _hero(context),
-            _numberedRow("Top 10 Movies", topMovies),
-            _numberedRow("Top 10 TV Shows", topShows),
+            _continueWatching(context),
+            _myList(context),
+            _numberedRow("Trending Movies", topMovies),
+            _numberedRow("Trending Shows", topShows),
             _nextWatch(context),
             _posterRow("Action", actionMovies),
             _posterRow("Comedy", comedyMovies),
@@ -115,8 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: CircularProgressIndicator(color: Colors.white24),
                 );
               }
-              final items =
-                  (snapshot.data ?? []).take(_heroCount).toList();
+              final items = (snapshot.data ?? []).take(_heroCount).toList();
               if (items.isEmpty) {
                 return Center(
                   child: Text(
@@ -141,8 +145,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           id: item.id,
                           isMovie: item.isMovie,
                         ),
-                        child: poster(item.posterPath,
-                            fallbackIcon: Icons.movie),
+                        child: poster(
+                          item.posterPath,
+                          fallbackIcon: Icons.movie,
+                        ),
                       );
                     },
                   ),
@@ -205,9 +211,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _heroMeta(MediaCardData item) {
-    final label = [item.typeLabel, item.genreLabel]
-        .where((e) => e != null && e.isNotEmpty)
-        .join("  ·  ");
+    final label = [
+      item.typeLabel,
+      item.genreLabel,
+    ].where((e) => e != null && e.isNotEmpty).join("  ·  ");
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -232,8 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         GestureDetector(
-          onTap: () =>
-              openDetail(context, id: item.id, isMovie: item.isMovie),
+          onTap: () => openDetail(context, id: item.id, isMovie: item.isMovie),
           child: Container(
             height: 50,
             width: 160,
@@ -259,18 +265,30 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(width: 14),
-        GestureDetector(
-          onTap: () =>
-              openDetail(context, id: item.id, isMovie: item.isMovie),
-          child: Container(
-            height: 50,
-            width: 50,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.grey.shade800.withValues(alpha: 0.75),
-            ),
-            child: const Icon(Icons.add, color: Colors.white, size: 28),
-          ),
+        ListenableBuilder(
+          listenable: WatchlistService.instance,
+          builder: (context, _) {
+            final inList = WatchlistService.instance.contains(
+              item.id,
+              isMovie: item.isMovie,
+            );
+            return GestureDetector(
+              onTap: () => WatchlistService.instance.toggle(item),
+              child: Container(
+                height: 50,
+                width: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.grey.shade800.withValues(alpha: 0.75),
+                ),
+                child: Icon(
+                  inList ? Icons.check : Icons.add,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -288,9 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
           width: active ? 8 : 6,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: active
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.35),
+            color: active ? Colors.white : Colors.white.withValues(alpha: 0.35),
           ),
         );
       }),
@@ -303,8 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<List<MediaCardData>>(
       future: future,
       builder: (context, snapshot) {
-        final items =
-            (snapshot.data ?? []).take(10).toList();
+        final items = (snapshot.data ?? []).take(10).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -313,12 +328,11 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: items.isEmpty
                   ? null
                   : () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              Top10Screen(title: title, items: items),
-                        ),
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => Top10Screen(title: title, items: items),
                       ),
+                    ),
             ),
             SizedBox(
               height: 256,
@@ -348,12 +362,11 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: items.isEmpty
                   ? null
                   : () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              Top10Screen(title: title, items: items),
-                        ),
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => Top10Screen(title: title, items: items),
                       ),
+                    ),
             ),
             SizedBox(
               height: 180,
@@ -364,11 +377,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   final item = items[index];
                   return PosterCard(
                     item: item,
-                    onTap: () => openDetail(
-                      context,
-                      id: item.id,
-                      isMovie: item.isMovie,
-                    ),
+                    onTap: () =>
+                        openDetail(context, id: item.id, isMovie: item.isMovie),
                   );
                 },
               ),
@@ -406,18 +416,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _nextWatch(BuildContext context) {
-    return FutureBuilder<List<MediaCardData>>(
-      future: trendingCards,
-      builder: (context, snapshot) {
-        final items =
-            (snapshot.data ?? []).skip(_heroCount).take(6).toList();
+  Widget _continueWatching(BuildContext context) {
+    return ListenableBuilder(
+      listenable: ContinueWatchingService.instance,
+      builder: (context, _) {
+        final entries = ContinueWatchingService.instance.entries;
+        if (entries.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(title: "Continue Watching"),
+            SizedBox(
+              height: 256,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                itemCount: entries.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (context, index) =>
+                    _ContinueCard(entry: entries[index]),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _myList(BuildContext context) {
+    return ListenableBuilder(
+      listenable: WatchlistService.instance,
+      builder: (context, _) {
+        final items = WatchlistService.instance.items;
         if (items.isEmpty) return const SizedBox.shrink();
         final cardWidth = MediaQuery.sizeOf(context).width - 56;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SectionHeader(title: "Your Next Watch"),
+            const SectionHeader(title: "My List"),
             SizedBox(
               height: 420,
               child: ListView.separated(
@@ -432,11 +468,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: cardWidth,
                     height: 420,
                     preferPoster: true,
-                    onTap: () => openDetail(
-                      context,
-                      id: item.id,
-                      isMovie: item.isMovie,
-                    ),
+                    onTap: () =>
+                        openDetail(context, id: item.id, isMovie: item.isMovie),
                   );
                 },
               ),
@@ -444,6 +477,122 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _nextWatch(BuildContext context) {
+    return FutureBuilder<List<MediaCardData>>(
+      future: trendingCards,
+      builder: (context, snapshot) {
+        final items = (snapshot.data ?? []).skip(_heroCount).take(6).toList();
+        if (items.isEmpty) return const SizedBox.shrink();
+        final cardWidth = MediaQuery.sizeOf(context).width - 56;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(title: "Must Watch"),
+            SizedBox(
+              height: 420,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return FeaturedLandscapeCard(
+                    item: item,
+                    width: cardWidth,
+                    height: 420,
+                    preferPoster: true,
+                    onTap: () =>
+                        openDetail(context, id: item.id, isMovie: item.isMovie),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// Same look as the Trending Movies cards, but tapping resumes playback and a
+// long press removes the entry from the rail.
+class _ContinueCard extends StatelessWidget {
+  final ContinueWatchingEntry entry;
+
+  const _ContinueCard({required this.entry});
+
+  void _resume(BuildContext context) {
+    final card = entry.card;
+    ContinueWatchingService.instance.record(
+      card,
+      season: entry.season,
+      episode: entry.episode,
+    );
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => card.isMovie
+            ? PlayerScreen.movie(tmdbId: card.id, title: card.title)
+            : PlayerScreen.episode(
+                tmdbId: card.id,
+                season: entry.season ?? 1,
+                episode: entry.episode ?? 1,
+                title:
+                    "${card.title} · S${entry.season ?? 1} "
+                    "E${entry.episode ?? 1}",
+              ),
+      ),
+    );
+  }
+
+  void _remove(BuildContext context) {
+    ContinueWatchingService.instance.remove(
+      entry.card.id,
+      isMovie: entry.card.isMovie,
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Removed from Continue Watching"),
+        backgroundColor: Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final caption = entry.card.isMovie
+        ? "Movie"
+        : "S${entry.season ?? 1} · E${entry.episode ?? 1}";
+    return SizedBox(
+      width: 150,
+      child: GestureDetector(
+        onLongPress: () => _remove(context),
+        child: Column(
+          children: [
+            PosterCard(
+              item: entry.card,
+              width: 150,
+              onTap: () => _resume(context),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55),
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -466,11 +615,8 @@ class _NumberedCard extends StatelessWidget {
               PosterCard(
                 item: item,
                 width: 150,
-                onTap: () => openDetail(
-                  context,
-                  id: item.id,
-                  isMovie: item.isMovie,
-                ),
+                onTap: () =>
+                    openDetail(context, id: item.id, isMovie: item.isMovie),
               ),
               Positioned(
                 top: 2,

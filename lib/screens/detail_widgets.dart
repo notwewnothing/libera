@@ -188,17 +188,25 @@ class BlurPill extends StatelessWidget {
   }
 }
 
-// Centered Play pill + circular "+" (My List), Apple TV style.
+// Centered Play pill + circular "+" (My List), Apple TV style. An optional
+// "watched" eye toggle appears when [onWatched] is provided (movies only;
+// shows are tracked per episode instead).
 class HeroActionButtons extends StatelessWidget {
   final String playLabel;
   final VoidCallback? onPlay;
   final VoidCallback? onMyList;
+  final bool inMyList;
+  final VoidCallback? onWatched;
+  final bool inWatched;
 
   const HeroActionButtons({
     super.key,
     this.playLabel = "Play",
     this.onPlay,
     this.onMyList,
+    this.inMyList = false,
+    this.onWatched,
+    this.inWatched = false,
   });
 
   @override
@@ -211,6 +219,7 @@ class HeroActionButtons extends StatelessWidget {
           child: Container(
             height: 50,
             padding: const EdgeInsets.symmetric(horizontal: 28),
+
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(25),
@@ -218,12 +227,15 @@ class HeroActionButtons extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.black,
-                  size: 28,
+                Transform.translate(
+                  offset: const Offset(-3, 0),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.black,
+                    size: 28,
+                  ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 3),
                 Text(
                   playLabel,
                   style: const TextStyle(
@@ -246,9 +258,34 @@ class HeroActionButtons extends StatelessWidget {
               shape: BoxShape.circle,
               color: Colors.grey.shade800.withValues(alpha: 0.75),
             ),
-            child: const Icon(Icons.add, color: Colors.white, size: 28),
+            child: Icon(
+              inMyList ? Icons.check : Icons.add,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
         ),
+        if (onWatched != null) ...[
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: onWatched,
+            child: Container(
+              height: 50,
+              width: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: inWatched
+                    ? Colors.white
+                    : Colors.grey.shade800.withValues(alpha: 0.75),
+              ),
+              child: Icon(
+                inWatched ? Icons.visibility : Icons.visibility_outlined,
+                color: inWatched ? Colors.black : Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -341,8 +378,9 @@ class TrailersSection extends StatelessWidget {
                 child: Container(
                   width: 300,
                   clipBehavior: Clip.antiAlias,
-                  decoration:
-                      BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -403,8 +441,7 @@ class TrailersSection extends StatelessWidget {
                                 Text(
                                   video.type,
                                   style: TextStyle(
-                                    color:
-                                        Colors.white.withValues(alpha: 0.6),
+                                    color: Colors.white.withValues(alpha: 0.6),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -520,6 +557,9 @@ class SeasonEpisodesSection extends StatelessWidget {
   final bool loading;
   final ValueChanged<int> onSeasonChanged;
   final ValueChanged<Episode> onPlayEpisode;
+  // Optional per-episode watched marking; both must be set to show the toggle.
+  final bool Function(Episode)? isEpisodeWatched;
+  final ValueChanged<Episode>? onToggleWatched;
 
   const SeasonEpisodesSection({
     super.key,
@@ -529,6 +569,8 @@ class SeasonEpisodesSection extends StatelessWidget {
     required this.loading,
     required this.onSeasonChanged,
     required this.onPlayEpisode,
+    this.isEpisodeWatched,
+    this.onToggleWatched,
   });
 
   String _runtime(int? r) => (r == null || r <= 0) ? "" : "${r}m";
@@ -615,7 +657,9 @@ class SeasonEpisodesSection extends StatelessWidget {
               ? Center(
                   child: Text(
                     "No episodes found",
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                    ),
                   ),
                 )
               : ListView.separated(
@@ -625,6 +669,7 @@ class SeasonEpisodesSection extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(width: 14),
                   itemBuilder: (context, index) {
                     final e = episodes[index];
+                    final watched = isEpisodeWatched?.call(e) ?? false;
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => onPlayEpisode(e),
@@ -675,6 +720,34 @@ class SeasonEpisodesSection extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                    if (isEpisodeWatched != null &&
+                                        onToggleWatched != null)
+                                      Positioned(
+                                        top: 6,
+                                        right: 6,
+                                        child: GestureDetector(
+                                          onTap: () => onToggleWatched!(e),
+                                          child: Container(
+                                            width: 30,
+                                            height: 30,
+                                            decoration: BoxDecoration(
+                                              color: watched
+                                                  ? Colors.white
+                                                  : Colors.black.withValues(
+                                                      alpha: 0.55,
+                                                    ),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              Icons.check,
+                                              color: watched
+                                                  ? Colors.black
+                                                  : Colors.white70,
+                                              size: 18,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -696,7 +769,9 @@ class SeasonEpisodesSection extends StatelessWidget {
                                   Text(
                                     _runtime(e.runtime),
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.5),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.5,
+                                      ),
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
                                     ),
