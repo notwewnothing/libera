@@ -2,10 +2,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:libera/screens/downloads_screen.dart';
 import 'package:libera/screens/home.dart';
 import 'package:libera/screens/search.dart';
 import 'package:libera/screens/watched_screen.dart';
 import 'package:libera/screens/watchlist_screen.dart';
+import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 
@@ -272,6 +274,26 @@ class _LibraryScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const WatchedScreen()),
               ),
             ),
+            _menuItem(
+              context,
+              icon: Iconsax.document_download,
+              title: "Downloads",
+              listenable: DownloadsService.instance,
+              subtitleBuilder: () {
+                final downloading = DownloadsService.instance.downloadingCount;
+                if (downloading > 0) {
+                  return "$downloading downloading";
+                }
+                final count = DownloadsService.instance.completedCount;
+                if (count == 0) return "No downloads yet";
+                return "$count ${count == 1 ? "title" : "titles"}";
+              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+              ),
+            ),
+
             Expanded(
               child: Center(
                 child: Column(
