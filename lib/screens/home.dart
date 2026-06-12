@@ -527,8 +527,9 @@ class _ContinueCard extends StatelessWidget {
 
   void _resume(BuildContext context) {
     final card = entry.card;
-    ContinueWatchingService.instance.record(
-      card,
+    final startAt = ContinueWatchingService.instance.resumePosition(
+      card.id,
+      isMovie: card.isMovie,
       season: entry.season,
       episode: entry.episode,
     );
@@ -536,14 +537,15 @@ class _ContinueCard extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (_) => card.isMovie
-            ? PlayerScreen.movie(tmdbId: card.id, title: card.title)
+            ? PlayerScreen.movie(card: card, startAt: startAt)
             : PlayerScreen.episode(
-                tmdbId: card.id,
+                card: card,
                 season: entry.season ?? 1,
                 episode: entry.episode ?? 1,
                 title:
                     "${card.title} · S${entry.season ?? 1} "
                     "E${entry.episode ?? 1}",
+                startAt: startAt,
               ),
       ),
     );
@@ -575,10 +577,38 @@ class _ContinueCard extends StatelessWidget {
         onLongPress: () => _remove(context),
         child: Column(
           children: [
-            PosterCard(
-              item: entry.card,
-              width: 150,
-              onTap: () => _resume(context),
+            Stack(
+              children: [
+                PosterCard(
+                  item: entry.card,
+                  width: 150,
+                  onTap: () => _resume(context),
+                ),
+                if (entry.progress > 0)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(12),
+                        ),
+                        child: Container(
+                          height: 4,
+                          color: Colors.white.withValues(alpha: 0.25),
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: entry.progress,
+                            child: Container(
+                              color: const Color(0xFFE50914),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             Text(

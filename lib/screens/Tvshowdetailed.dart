@@ -82,21 +82,22 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     int episodeNumber,
     String? episodeName,
   ) {
-    ContinueWatchingService.instance.record(
-      card,
-      season: _selectedSeason,
-      episode: episodeNumber,
-    );
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerScreen.episode(
-          tmdbId: widget.tvid,
+          card: card,
           season: _selectedSeason,
           episode: episodeNumber,
           title: episodeName != null && episodeName.isNotEmpty
               ? "$showName · $episodeName"
               : "$showName · S$_selectedSeason E$episodeNumber",
+          startAt: ContinueWatchingService.instance.resumePosition(
+            card.id,
+            isMovie: false,
+            season: _selectedSeason,
+            episode: episodeNumber,
+          ),
         ),
       ),
     );

@@ -158,14 +158,16 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
     );
   }
 
-  void _onPlay(MovieDetails movie, MediaCardData card) {
-    ContinueWatchingService.instance.record(card);
+  void _onPlay(MediaCardData card) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerScreen.movie(
-          tmdbId: movie.id,
-          title: movie.title,
+          card: card,
+          startAt: ContinueWatchingService.instance.resumePosition(
+            card.id,
+            isMovie: true,
+          ),
         ),
       ),
     );
@@ -288,7 +290,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                   title: movie.title,
                   metaLine: metaLine,
                   card: card,
-                  onPlay: () => _onPlay(movie, card),
+                  onPlay: () => _onPlay(card),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
