@@ -80,27 +80,44 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     MediaCardData card,
     String showName,
     int episodeNumber,
-    String? episodeName,
-  ) {
+    String? episodeName, {
+    int? season,
+  }) {
+    final s = season ?? _selectedSeason;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerScreen.episode(
           card: card,
-          season: _selectedSeason,
+          season: s,
           episode: episodeNumber,
           title: episodeName != null && episodeName.isNotEmpty
               ? "$showName · $episodeName"
-              : "$showName · S$_selectedSeason E$episodeNumber",
+              : "$showName · S$s E$episodeNumber",
           startAt: ContinueWatchingService.instance.resumePosition(
             card.id,
             isMovie: false,
-            season: _selectedSeason,
+            season: s,
             episode: episodeNumber,
           ),
         ),
       ),
     );
+  }
+
+  void _playResume(MediaCardData card, ContinueWatchingEntry entry) {
+    final season = entry.season ?? 1;
+    final episode = entry.episode ?? 1;
+    String? episodeName;
+    if (season == _selectedSeason) {
+      for (final e in _episodes) {
+        if (e.episodeNumber == episode) {
+          episodeName = e.name;
+          break;
+        }
+      }
+    }
+    _play(card, card.title, episode, episodeName, season: season);
   }
 
   void _fetchProviders() async {
@@ -153,10 +170,13 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
           .toList();
       if (youtubeVideos.isEmpty) return;
 
-      var sectionVideos = youtubeVideos.where((v) {
-        final t = v.type.toLowerCase();
-        return t == 'trailer' || t == 'teaser';
-      }).take(6).toList();
+      var sectionVideos = youtubeVideos
+          .where((v) {
+            final t = v.type.toLowerCase();
+            return t == 'trailer' || t == 'teaser';
+          })
+          .take(6)
+          .toList();
       if (sectionVideos.isEmpty) {
         sectionVideos = youtubeVideos.take(6).toList();
       }
@@ -222,9 +242,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
       e.episodeNumber,
     );
     if (!added) return;
-    final idx = _episodes.indexWhere(
-      (x) => x.episodeNumber == e.episodeNumber,
-    );
+    final idx = _episodes.indexWhere((x) => x.episodeNumber == e.episodeNumber);
     final next = (idx >= 0 && idx + 1 < _episodes.length)
         ? _episodes[idx + 1].episodeNumber
         : e.episodeNumber;
@@ -328,8 +346,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                 ? "${show.numberOfSeasons} "
                       "${show.numberOfSeasons == 1 ? "Season" : "Seasons"}"
                 : null;
-            final metaLine =
-                ["TV Show", ...genreNames.take(2)].join("  ·  ");
+            final metaLine = ["TV Show", ...genreNames.take(2)].join("  ·  ");
             final card = MediaCardData(
               id: show.id,
               title: show.name,
@@ -341,67 +358,69 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
               overview: show.overview,
             );
 
-            return _fadeSwitch(Column(
-              key: const ValueKey("content"),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(
-                  context,
-                  headerHeight,
-                  posterPath: show.posterPath,
-                  title: show.name,
-                  metaLine: metaLine,
-                  card: card,
-                  onPlay: () => _play(
-                    card,
-                    show.name,
-                    _episodes.isNotEmpty ? _episodes.first.episodeNumber : 1,
-                    _episodes.isNotEmpty ? _episodes.first.name : null,
+            return _fadeSwitch(
+              Column(
+                key: const ValueKey("content"),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(
+                    context,
+                    headerHeight,
+                    posterPath: show.posterPath,
+                    title: show.name,
+                    metaLine: metaLine,
+                    card: card,
+                    onPlay: () => _play(
+                      card,
+                      show.name,
+                      _episodes.isNotEmpty ? _episodes.first.episodeNumber : 1,
+                      _episodes.isNotEmpty ? _episodes.first.name : null,
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (show.overview.isNotEmpty) ...[
-                        ExpandableOverview(text: show.overview),
-                        const SizedBox(height: 16),
-                      ],
-                      MetaRow(
-                        year: year,
-                        voteAverage: show.voteAverage,
-                        extraLabel: seasonsLabel,
-                        genres: genreNames,
-                      ),
-                    ],
-                  ),
-                ),
-                ListenableBuilder(
-                  listenable: WatchedService.instance,
-                  builder: (context, _) => SeasonEpisodesSection(
-                    seasonCount: show.numberOfSeasons,
-                    selectedSeason: _selectedSeason,
-                    episodes: _episodes,
-                    loading: _episodesLoading,
-                    onSeasonChanged: _onSeasonChanged,
-                    onPlayEpisode: (e) =>
-                        _play(card, show.name, e.episodeNumber, e.name),
-                    isEpisodeWatched: (e) => WatchedService.instance
-                        .isEpisodeWatched(
-                          card.id,
-                          _selectedSeason,
-                          e.episodeNumber,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (show.overview.isNotEmpty) ...[
+                          ExpandableOverview(text: show.overview),
+                          const SizedBox(height: 16),
+                        ],
+                        MetaRow(
+                          year: year,
+                          voteAverage: show.voteAverage,
+                          extraLabel: seasonsLabel,
+                          genres: genreNames,
                         ),
-                    onToggleWatched: (e) => _toggleEpisodeWatched(card, e),
+                      ],
+                    ),
                   ),
-                ),
-                if (_videos.isNotEmpty) TrailersSection(videos: _videos),
-                if (_cast.isNotEmpty) CastSection(cast: _cast),
-                if (_similar.isNotEmpty) _SimilarSection(items: _similar),
-                const SizedBox(height: 30),
-              ],
-            ));
+                  ListenableBuilder(
+                    listenable: WatchedService.instance,
+                    builder: (context, _) => SeasonEpisodesSection(
+                      seasonCount: show.numberOfSeasons,
+                      selectedSeason: _selectedSeason,
+                      episodes: _episodes,
+                      loading: _episodesLoading,
+                      onSeasonChanged: _onSeasonChanged,
+                      onPlayEpisode: (e) =>
+                          _play(card, show.name, e.episodeNumber, e.name),
+                      isEpisodeWatched: (e) =>
+                          WatchedService.instance.isEpisodeWatched(
+                            card.id,
+                            _selectedSeason,
+                            e.episodeNumber,
+                          ),
+                      onToggleWatched: (e) => _toggleEpisodeWatched(card, e),
+                    ),
+                  ),
+                  if (_videos.isNotEmpty) TrailersSection(videos: _videos),
+                  if (_cast.isNotEmpty) CastSection(cast: _cast),
+                  if (_similar.isNotEmpty) _SimilarSection(items: _similar),
+                  const SizedBox(height: 30),
+                ],
+              ),
+            );
           },
         ),
       ),
@@ -531,16 +550,30 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                   ),
                   const SizedBox(height: 18),
                   ListenableBuilder(
-                    listenable: WatchlistService.instance,
-                    builder: (context, _) => HeroActionButtons(
-                      playLabel: "Play First Episode",
-                      onPlay: onPlay,
-                      inMyList: WatchlistService.instance.contains(
+                    listenable: Listenable.merge([
+                      WatchlistService.instance,
+                      ContinueWatchingService.instance,
+                    ]),
+                    builder: (context, _) {
+                      final resume = ContinueWatchingService.instance.entryFor(
                         card.id,
                         isMovie: false,
-                      ),
-                      onMyList: () => _toggleMyList(card),
-                    ),
+                      );
+                      final hasResume = resume != null && resume.episode != null;
+                      return HeroActionButtons(
+                        playLabel: hasResume
+                            ? "Resume S${resume.season ?? 1} E${resume.episode}"
+                            : "Play First Episode",
+                        onPlay: hasResume
+                            ? () => _playResume(card, resume)
+                            : onPlay,
+                        inMyList: WatchlistService.instance.contains(
+                          card.id,
+                          isMovie: false,
+                        ),
+                        onMyList: () => _toggleMyList(card),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -617,8 +650,7 @@ class _SimilarSection extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          TvShowDetailedScreen(tvid: item.id),
+                      builder: (context) => TvShowDetailedScreen(tvid: item.id),
                     ),
                   );
                 },
