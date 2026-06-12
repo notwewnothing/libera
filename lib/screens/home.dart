@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late Future<List<MediaCardData>> horrorMovies;
   late Future<List<MediaCardData>> dramaMovies;
 
-  final PageController _heroController = PageController();
+  final PageController _heroController = PageController(initialPage: 4000);
   int _heroPage = 0;
 
   static const int _heroCount = 8;
@@ -129,16 +129,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 );
               }
-              final current = items[_heroPage.clamp(0, items.length - 1)];
+              final current = items[_heroPage];
               return Stack(
                 fit: StackFit.expand,
                 children: [
                   PageView.builder(
                     controller: _heroController,
-                    itemCount: items.length,
-                    onPageChanged: (i) => setState(() => _heroPage = i),
+                    itemCount: 8000,
+                    onPageChanged: (i) =>
+                        setState(() => _heroPage = i % items.length),
                     itemBuilder: (context, index) {
-                      final item = items[index];
+                      final item = items[index % items.length];
                       return GestureDetector(
                         onTap: () => openDetail(
                           context,
@@ -194,9 +195,9 @@ class _HomeScreenState extends State<HomeScreen> {
             left: 20,
             child: const IgnorePointer(
               child: Text(
-                "Home",
+                "Dih 🥀",
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color.fromARGB(255, 255, 0, 0),
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   letterSpacing: -0.5,
@@ -600,9 +601,7 @@ class _ContinueCard extends StatelessWidget {
                           alignment: Alignment.centerLeft,
                           child: FractionallySizedBox(
                             widthFactor: entry.progress,
-                            child: Container(
-                              color: const Color(0xFFE50914),
-                            ),
+                            child: Container(color: const Color(0xFFE50914)),
                           ),
                         ),
                       ),
