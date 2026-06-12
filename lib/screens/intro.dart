@@ -12,18 +12,21 @@ class _IntroScreenState extends State<IntroScreen> {
   @override
   void initState() {
     super.initState();
-    // Schedule navigation immediately after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => AppNavbarScreen()),
+        PageRouteBuilder(
+          pageBuilder: (_, _, _) => const AppNavbarScreen(),
+          transitionDuration: const Duration(milliseconds: 350),
+          transitionsBuilder: (_, animation, _, child) =>
+              FadeTransition(opacity: animation, child: child),
+        ),
       );
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Returns an empty container since no visual asset is displayed
     return const Scaffold(body: SizedBox.shrink());
   }
 }

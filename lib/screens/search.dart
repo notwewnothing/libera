@@ -94,7 +94,20 @@ class _SearchScreenState extends State<SearchScreen> {
             _searchBar(),
             const SizedBox(height: 12),
             Expanded(
-              child: _query.isEmpty ? _categoryGrid() : _resultsView(),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: _query.isEmpty
+                    ? KeyedSubtree(
+                        key: const ValueKey("categories"),
+                        child: _categoryGrid(),
+                      )
+                    : KeyedSubtree(
+                        key: const ValueKey("results"),
+                        child: _resultsView(),
+                      ),
+              ),
             ),
           ],
         ),
@@ -166,6 +179,7 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
     return GridView.builder(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -189,6 +203,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _categoryGrid() {
     return GridView.count(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       crossAxisCount: 3,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
       mainAxisSpacing: 14,
@@ -243,7 +258,7 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Pressable(
       onTap: () => _open(context),
       child: Container(
         clipBehavior: Clip.antiAlias,

@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class WatchedShow {
   final MediaCardData card;
-  // Episode keys formatted "season:episode".
   final Set<String> episodes;
 
   WatchedShow({required this.card, required this.episodes});
@@ -22,8 +21,6 @@ class WatchedShow {
   };
 }
 
-/// Locally persisted watch history: whole movies, and series tracked per
-/// episode. A show is listed as soon as one of its episodes is marked.
 class WatchedService extends ChangeNotifier {
   WatchedService._();
   static final WatchedService instance = WatchedService._();
@@ -62,11 +59,8 @@ class WatchedService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ------------------------------------------------------------- movies
-
   bool isMovieWatched(int id) => _movies.any((e) => e.id == id);
 
-  /// Returns true if the movie ended up marked as watched.
   Future<bool> toggleMovie(MediaCardData card) async {
     final added = !isMovieWatched(card.id);
     if (added) {
@@ -79,7 +73,6 @@ class WatchedService extends ChangeNotifier {
     return added;
   }
 
-  /// Idempotent variant used by automatic tracking (e.g. playback finished).
   Future<void> markMovieWatched(MediaCardData card) async {
     if (isMovieWatched(card.id)) return;
     await toggleMovie(card);
@@ -90,8 +83,6 @@ class WatchedService extends ChangeNotifier {
     notifyListeners();
     await _persist();
   }
-
-  // ------------------------------------------------------------ episodes
 
   static String _episodeKey(int season, int episode) => "$season:$episode";
 
@@ -111,9 +102,6 @@ class WatchedService extends ChangeNotifier {
     return 0;
   }
 
-  /// Marks/unmarks one episode. The show entry is created on first mark and
-  /// dropped once its last episode is unmarked. Returns true if the episode
-  /// ended up watched.
   Future<bool> toggleEpisode(MediaCardData show, int season, int episode) async {
     final key = _episodeKey(season, episode);
     var entry = _shows.where((s) => s.card.id == show.id).firstOrNull;
@@ -136,8 +124,6 @@ class WatchedService extends ChangeNotifier {
     return added;
   }
 
-  /// Idempotent variant used by automatic tracking (episode finished or the
-  /// player moved on to a later episode).
   Future<void> markEpisodeWatched(
     MediaCardData show,
     int season,

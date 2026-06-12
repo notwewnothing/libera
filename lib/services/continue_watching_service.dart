@@ -6,10 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ContinueWatchingEntry {
   final MediaCardData card;
-  // Set for TV shows only; null for movies.
   final int? season;
   final int? episode;
-  // Playback position reported by the player; 0 when unknown.
   final double positionSeconds;
   final double durationSeconds;
 
@@ -43,8 +41,6 @@ class ContinueWatchingEntry {
   };
 }
 
-/// Locally persisted "Continue Watching" rail. Every playback start upserts
-/// an entry to the front, so the rail stays ordered by recency.
 class ContinueWatchingService extends ChangeNotifier {
   ContinueWatchingService._();
   static final ContinueWatchingService instance = ContinueWatchingService._();
@@ -84,8 +80,6 @@ class ContinueWatchingService extends ChangeNotifier {
     return null;
   }
 
-  /// Saved position to restart from, or 0 when there's nothing meaningful to
-  /// resume (too early, nearly finished, or a different episode).
   double resumePosition(
     int id, {
     required bool isMovie,
@@ -105,8 +99,6 @@ class ContinueWatchingService extends ChangeNotifier {
     return entry.positionSeconds;
   }
 
-  /// Pass null position/duration to keep the saved ones (when still on the
-  /// same episode); explicit values overwrite them.
   Future<void> record(
     MediaCardData card, {
     int? season,

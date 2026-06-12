@@ -35,6 +35,7 @@ MediaCardData showToCard(shows.Result r) => MediaCardData(
   title: r.name,
   posterPath: r.posterPath,
   backdropPath: r.backdropPath,
+  genreLabel: primaryGenre(r.genreIds),
   typeLabel: "TV Show",
   isMovie: false,
   overview: r.overview,

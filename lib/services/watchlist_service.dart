@@ -4,8 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Locally persisted favorites / watchlist. A single app-wide instance keeps
-/// every listening widget (home row, library, detail buttons) in sync.
 class WatchlistService extends ChangeNotifier {
   WatchlistService._();
   static final WatchlistService instance = WatchlistService._();
@@ -15,7 +13,6 @@ class WatchlistService extends ChangeNotifier {
   List<MediaCardData> _items = [];
   bool _loaded = false;
 
-  /// Newest additions first.
   List<MediaCardData> get items => List.unmodifiable(_items);
 
   bool get isEmpty => _items.isEmpty;
@@ -38,12 +35,9 @@ class WatchlistService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Movies and TV shows can share TMDB ids, so membership is keyed on both.
   bool contains(int id, {required bool isMovie}) =>
       _items.any((e) => e.id == id && e.isMovie == isMovie);
 
-  /// Adds the item if absent, removes it otherwise. Returns true if the item
-  /// ended up in the list.
   Future<bool> toggle(MediaCardData item) async {
     final added = !contains(item.id, isMovie: item.isMovie);
     if (added) {

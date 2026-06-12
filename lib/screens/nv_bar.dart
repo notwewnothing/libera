@@ -22,8 +22,8 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
   int _index = 0;
 
   static const _tabs = [
-    (icon: Iconsax.home5, label: "Home"),
-    (icon: Iconsax.search_normal, label: "Search"),
+    (icon: Iconsax.home, label: "Home"),
+    (icon: Iconsax.search_normal_14, label: "Search"),
     (icon: Iconsax.video_square, label: "Library"),
   ];
 
@@ -32,7 +32,7 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       extendBody: true,
-      body: IndexedStack(
+      body: _FadeIndexedStack(
         index: _index,
         children: const [HomeScreen(), SearchScreen(), _LibraryScreen()],
       ),
@@ -49,12 +49,34 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.09),
                 borderRadius: BorderRadius.circular(36),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.07),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
               ),
-              child: Row(
-                children: List.generate(_tabs.length, (i) => _tab(i)),
+              child: Stack(
+                children: [
+                  AnimatedAlign(
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOutQuart,
+                    alignment: Alignment(
+                      _tabs.length == 1
+                          ? 0
+                          : -1 + 2 * _index / (_tabs.length - 1),
+                      0,
+                    ),
+                    child: FractionallySizedBox(
+                      widthFactor: 1 / _tabs.length,
+                      heightFactor: 1,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: List.generate(_tabs.length, (i) => _tab(i)),
+                  ),
+                ],
               ),
             ),
           ),
@@ -66,43 +88,72 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
   Widget _tab(int i) {
     final tab = _tabs[i];
     final selected = i == _index;
+    final color = selected ? _accent : Colors.white.withValues(alpha: 0.65);
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _index = i),
         behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: selected
-                ? Colors.white.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                tab.icon,
-                size: 24,
-                color: selected
-                    ? _accent
-                    : Colors.white.withValues(alpha: 0.65),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TweenAnimationBuilder<Color?>(
+              duration: const Duration(milliseconds: 250),
+              tween: ColorTween(end: color),
+              builder: (context, value, _) =>
+                  Icon(tab.icon, size: 24, color: value),
+            ),
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 250),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
               ),
-              const SizedBox(height: 3),
-              Text(
-                tab.label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: selected
-                      ? _accent
-                      : Colors.white.withValues(alpha: 0.65),
-                ),
-              ),
-            ],
-          ),
+              child: Text(tab.label),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _FadeIndexedStack extends StatefulWidget {
+  final int index;
+  final List<Widget> children;
+
+  const _FadeIndexedStack({required this.index, required this.children});
+
+  @override
+  State<_FadeIndexedStack> createState() => _FadeIndexedStackState();
+}
+
+class _FadeIndexedStackState extends State<_FadeIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 250),
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(_FadeIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index != oldWidget.index) _controller.forward(from: 0.25);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+      child: IndexedStack(index: widget.index, children: widget.children),
     );
   }
 }

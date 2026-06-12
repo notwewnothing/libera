@@ -47,6 +47,56 @@ class MediaCardData {
   };
 }
 
+class Pressable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final double pressedScale;
+
+  const Pressable({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.onLongPress,
+    this.pressedScale = 0.96,
+  });
+
+  @override
+  State<Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<Pressable> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onLongPress: widget.onLongPress,
+      onLongPressEnd:
+          widget.onLongPress != null ? (_) => _setPressed(false) : null,
+      child: AnimatedScale(
+        scale: _pressed ? widget.pressedScale : 1.0,
+        duration: Duration(milliseconds: _pressed ? 90 : 220),
+        curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+        child: AnimatedOpacity(
+          opacity: _pressed ? 0.85 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
 class SectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onTap;
@@ -97,9 +147,8 @@ class PosterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Pressable(
       onTap: onTap,
-      behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: width,
         child: AspectRatio(
@@ -135,7 +184,6 @@ class FeaturedLandscapeCard extends StatelessWidget {
   final VoidCallback onTap;
   final double? width;
   final double height;
-  // Tall cards crop landscape backdrops too hard; let them use the poster.
   final bool preferPoster;
 
   const FeaturedLandscapeCard({
@@ -149,8 +197,9 @@ class FeaturedLandscapeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Pressable(
       onTap: onTap,
+      pressedScale: 0.975,
       child: Container(
         width: width,
         height: height,
@@ -240,6 +289,9 @@ Widget poster(String? path, {required IconData fallbackIcon}) {
     imageUrl: "$imageUrl$path",
     fit: BoxFit.cover,
     memCacheWidth: 360,
+    fadeInDuration: const Duration(milliseconds: 220),
+    fadeInCurve: Curves.easeOut,
+    fadeOutDuration: Duration.zero,
     placeholder: (_, _) => Container(color: Colors.grey.shade900),
     errorWidget: (_, _, _) => Container(
       color: Colors.grey.shade900,

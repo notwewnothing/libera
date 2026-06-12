@@ -10,8 +10,6 @@ import 'package:libera/model/season_details.dart';
 import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/trailer_player.dart';
 
-// Shared building blocks for the movie & TV show detail screens.
-
 class DetailCircleButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
@@ -85,8 +83,6 @@ class ProviderLogos extends StatelessWidget {
 class MetaRow extends StatelessWidget {
   final String? year;
   final double voteAverage;
-  // Either a single runtime (movies) or a pre-formatted extra label (e.g.
-  // "3 Seasons" for TV shows). Pass whichever applies; null hides it.
   final int? runtime;
   final String? extraLabel;
   final List<String> genres;
@@ -163,7 +159,6 @@ class MetaRow extends StatelessWidget {
   }
 }
 
-// Frosted pill grouping the top-right header actions (download, mute).
 class BlurPill extends StatelessWidget {
   final List<Widget> children;
   const BlurPill({super.key, required this.children});
@@ -188,9 +183,6 @@ class BlurPill extends StatelessWidget {
   }
 }
 
-// Centered Play pill + circular "+" (My List), Apple TV style. An optional
-// "watched" eye toggle appears when [onWatched] is provided (movies only;
-// shows are tracked per episode instead).
 class HeroActionButtons extends StatelessWidget {
   final String playLabel;
   final VoidCallback? onPlay;
@@ -214,7 +206,7 @@ class HeroActionButtons extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        GestureDetector(
+        Pressable(
           onTap: onPlay,
           child: Container(
             height: 50,
@@ -249,8 +241,9 @@ class HeroActionButtons extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 14),
-        GestureDetector(
+        Pressable(
           onTap: onMyList,
+          pressedScale: 0.9,
           child: Container(
             height: 50,
             width: 50,
@@ -258,8 +251,8 @@ class HeroActionButtons extends StatelessWidget {
               shape: BoxShape.circle,
               color: Colors.grey.shade800.withValues(alpha: 0.75),
             ),
-            child: Icon(
-              inMyList ? Icons.check : Icons.add,
+            child: _AnimatedToggleIcon(
+              icon: inMyList ? Icons.check : Icons.add,
               color: Colors.white,
               size: 28,
             ),
@@ -267,9 +260,12 @@ class HeroActionButtons extends StatelessWidget {
         ),
         if (onWatched != null) ...[
           const SizedBox(width: 14),
-          GestureDetector(
+          Pressable(
             onTap: onWatched,
-            child: Container(
+            pressedScale: 0.9,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
               height: 50,
               width: 50,
               decoration: BoxDecoration(
@@ -278,8 +274,8 @@ class HeroActionButtons extends StatelessWidget {
                     ? Colors.white
                     : Colors.grey.shade800.withValues(alpha: 0.75),
               ),
-              child: Icon(
-                inWatched ? Icons.visibility : Icons.visibility_outlined,
+              child: _AnimatedToggleIcon(
+                icon: inWatched ? Icons.visibility : Icons.visibility_outlined,
                 color: inWatched ? Colors.black : Colors.white,
                 size: 26,
               ),
@@ -291,7 +287,29 @@ class HeroActionButtons extends StatelessWidget {
   }
 }
 
-// Description clamped to a few lines with an Apple TV-style MORE chip.
+class _AnimatedToggleIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  const _AnimatedToggleIcon({
+    required this.icon,
+    required this.color,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutBack,
+      transitionBuilder: (child, animation) =>
+          ScaleTransition(scale: animation, child: child),
+      child: Icon(icon, key: ValueKey(icon), color: color, size: size),
+    );
+  }
+}
+
 class ExpandableOverview extends StatefulWidget {
   final String text;
   const ExpandableOverview({super.key, required this.text});
@@ -309,14 +327,19 @@ class _ExpandableOverviewState extends State<ExpandableOverview> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.text,
-          maxLines: _expanded ? null : 3,
-          overflow: _expanded ? null : TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 15,
-            height: 1.4,
-            color: Colors.white.withValues(alpha: 0.75),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: Text(
+            widget.text,
+            maxLines: _expanded ? null : 3,
+            overflow: _expanded ? null : TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 15,
+              height: 1.4,
+              color: Colors.white.withValues(alpha: 0.75),
+            ),
           ),
         ),
         if (showMore) ...[
@@ -365,7 +388,7 @@ class TrailersSection extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final video = videos[index];
-              return GestureDetector(
+              return Pressable(
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -557,7 +580,6 @@ class SeasonEpisodesSection extends StatelessWidget {
   final bool loading;
   final ValueChanged<int> onSeasonChanged;
   final ValueChanged<Episode> onPlayEpisode;
-  // Optional per-episode watched marking; both must be set to show the toggle.
   final bool Function(Episode)? isEpisodeWatched;
   final ValueChanged<Episode>? onToggleWatched;
 
@@ -670,8 +692,7 @@ class SeasonEpisodesSection extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final e = episodes[index];
                     final watched = isEpisodeWatched?.call(e) ?? false;
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                    return Pressable(
                       onTap: () => onPlayEpisode(e),
                       child: SizedBox(
                         width: 240,

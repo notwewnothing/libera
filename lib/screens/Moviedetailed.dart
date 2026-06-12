@@ -95,7 +95,6 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
           .toList();
       if (youtubeVideos.isEmpty) return;
 
-      // Trailers/teasers feed the Trailers section below the fold.
       var sectionVideos = youtubeVideos.where((v) {
         final t = v.type.toLowerCase();
         return t == 'trailer' || t == 'teaser';
@@ -175,7 +174,6 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
 
   void _toggleWatched(MediaCardData card) async {
     final added = await WatchedService.instance.toggleMovie(card);
-    // A finished movie has no business on the Continue Watching rail.
     if (added) {
       ContinueWatchingService.instance.remove(card.id, isMovie: true);
     }
@@ -205,6 +203,15 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
     );
   }
 
+  Widget _fadeSwitch(Widget child) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -217,10 +224,13 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
           future: movieDetails,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return SizedBox(
-                height: size.height,
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
+              return _fadeSwitch(
+                SizedBox(
+                  key: const ValueKey("loading"),
+                  height: size.height,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
                 ),
               );
             }
@@ -280,7 +290,8 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
               overview: movie.overview,
             );
 
-            return Column(
+            return _fadeSwitch(Column(
+              key: const ValueKey("content"),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(
@@ -315,7 +326,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                 if (_similar.isNotEmpty) _SimilarSection(items: _similar),
                 const SizedBox(height: 30),
               ],
-            );
+            ));
           },
         ),
       ),
@@ -532,7 +543,7 @@ class _SimilarSection extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final item = items[index];
-              return GestureDetector(
+              return Pressable(
                 onTap: () {
                   Navigator.push(
                     context,

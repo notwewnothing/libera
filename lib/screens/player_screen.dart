@@ -11,7 +11,6 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 class PlayerScreen extends StatefulWidget {
   final String title;
   final String embedUrl;
-  // Watch-progress tracking is enabled when a card is provided.
   final MediaCardData? card;
   final int? season;
   final int? episode;
@@ -92,8 +91,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    // initState runs mid-build; notifying service listeners now would mark
-    // widgets dirty during build. Record after the first frame instead.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final card = _card;
       if (card != null) {
@@ -147,9 +144,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
-  // The embed posts PLAYER_EVENT messages to its parent window; since the
-  // embed is our top document here, a window message listener catches them
-  // and forwards them over the JavaScript channel.
   void _hookPlayerEvents() {
     _controller.runJavaScript('''
       if (!window.__liberaProgressHooked) {
@@ -199,15 +193,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       case "seeked":
         _saveProgress();
       case "timeupdate":
-        // timeupdate fires continuously; don't hammer storage.
         if (DateTime.now().difference(_lastSave).inSeconds >= 10) {
           _saveProgress();
         }
     }
   }
 
-  // Fallback detection: the next-episode button / episode selector navigate
-  // the embed to a new /embed/tv/<id>/<season>/<episode> URL.
   void _onUrlChanged(String? url) {
     final card = _card;
     if (url == null || card == null || card.isMovie) return;
@@ -222,7 +213,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _handleEpisodeChange(int season, int episode) {
     final card = _card!;
-    // Moving forward means the previous episode was finished.
     final forward =
         season > _season || (season == _season && episode > _episode);
     if (forward) {
@@ -264,16 +254,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ContinueWatchingService.instance.remove(card.id, isMovie: true);
     } else {
       WatchedService.instance.markEpisodeWatched(card, _season, _episode);
-      // Keep the rail entry: auto-advance fires an episode change next.
       _saveProgress();
     }
   }
 
   @override
   void dispose() {
-    // Flush the last known position so leaving mid-playback still resumes.
-    // Deferred for the same reason as the initState record: dispose can run
-    // while the framework is mid-build during the route pop.
     if (_card != null && _position > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _saveProgress());
     }

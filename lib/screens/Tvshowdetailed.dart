@@ -153,7 +153,6 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
           .toList();
       if (youtubeVideos.isEmpty) return;
 
-      // Trailers/teasers feed the Trailers section below the fold.
       var sectionVideos = youtubeVideos.where((v) {
         final t = v.type.toLowerCase();
         return t == 'trailer' || t == 'teaser';
@@ -216,9 +215,6 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
-  // Marking an episode watched is series progress, so it also surfaces the
-  // show on the home Continue Watching rail, queued at the next episode of
-  // the loaded season (or the marked one if it's the last).
   void _toggleEpisodeWatched(MediaCardData card, Episode e) async {
     final added = await WatchedService.instance.toggleEpisode(
       card,
@@ -254,6 +250,15 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
+  Widget _fadeSwitch(Widget child) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -266,10 +271,13 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
           future: tvDetails,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return SizedBox(
-                height: size.height,
-                child: const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
+              return _fadeSwitch(
+                SizedBox(
+                  key: const ValueKey("loading"),
+                  height: size.height,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
                 ),
               );
             }
@@ -333,7 +341,8 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
               overview: show.overview,
             );
 
-            return Column(
+            return _fadeSwitch(Column(
+              key: const ValueKey("content"),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(
@@ -392,7 +401,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                 if (_similar.isNotEmpty) _SimilarSection(items: _similar),
                 const SizedBox(height: 30),
               ],
-            );
+            ));
           },
         ),
       ),
@@ -603,7 +612,7 @@ class _SimilarSection extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final item = items[index];
-              return GestureDetector(
+              return Pressable(
                 onTap: () {
                   Navigator.push(
                     context,
