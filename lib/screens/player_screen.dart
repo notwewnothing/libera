@@ -92,14 +92,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    final card = _card;
-    if (card != null) {
-      ContinueWatchingService.instance.record(
-        card,
-        season: card.isMovie ? null : _season,
-        episode: card.isMovie ? null : _episode,
-      );
-    }
+    // initState runs mid-build; notifying service listeners now would mark
+    // widgets dirty during build. Record after the first frame instead.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final card = _card;
+      if (card != null) {
+        ContinueWatchingService.instance.record(
+          card,
+          season: card.isMovie ? null : _season,
+          episode: card.isMovie ? null : _episode,
+        );
+      }
+    });
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -268,7 +272,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     // Flush the last known position so leaving mid-playback still resumes.
-    if (_card != null && _position > 0) _saveProgress();
+    // Deferred for the same reason as the initState record: dispose can run
+    // while the framework is mid-build during the route pop.
+    if (_card != null && _position > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _saveProgress());
+    }
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
