@@ -159,6 +159,7 @@ class MetaRow extends StatelessWidget {
   }
 }
 
+// whyyyyy
 class BlurPill extends StatelessWidget {
   final List<Widget> children;
   const BlurPill({super.key, required this.children});

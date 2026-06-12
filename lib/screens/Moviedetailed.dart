@@ -78,8 +78,10 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
     try {
       final data = await apiServices.fetchSimilarMovies(widget.movieid);
       if (data == null || !mounted) return;
-      setState(() => _similar =
-          data.results.where((m) => m.posterPath != null).toList());
+      setState(
+        () =>
+            _similar = data.results.where((m) => m.posterPath != null).toList(),
+      );
     } catch (e) {
       debugPrint("Failed to fetch similar movies: $e");
     }
@@ -95,10 +97,13 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
           .toList();
       if (youtubeVideos.isEmpty) return;
 
-      var sectionVideos = youtubeVideos.where((v) {
-        final t = v.type.toLowerCase();
-        return t == 'trailer' || t == 'teaser';
-      }).take(6).toList();
+      var sectionVideos = youtubeVideos
+          .where((v) {
+            final t = v.type.toLowerCase();
+            return t == 'trailer' || t == 'teaser';
+          })
+          .take(6)
+          .toList();
       if (sectionVideos.isEmpty) {
         sectionVideos = youtubeVideos.take(6).toList();
       }
@@ -273,12 +278,11 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                 ),
               );
             }
-
+            // i hate myselfffffffffff
             final movie = snapshot.data!;
             final year = movie.releaseDate?.year.toString();
             final genreNames = movie.genres.map((g) => g.name).toList();
-            final metaLine =
-                ["Movie", ...genreNames.take(2)].join("  ·  ");
+            final metaLine = ["Movie", ...genreNames.take(2)].join("  ·  ");
             final card = MediaCardData(
               id: movie.id,
               title: movie.title,
@@ -290,43 +294,45 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
               overview: movie.overview,
             );
 
-            return _fadeSwitch(Column(
-              key: const ValueKey("content"),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(
-                  context,
-                  headerHeight,
-                  posterPath: movie.posterPath,
-                  title: movie.title,
-                  metaLine: metaLine,
-                  card: card,
-                  onPlay: () => _onPlay(card),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (movie.overview.isNotEmpty) ...[
-                        ExpandableOverview(text: movie.overview),
-                        const SizedBox(height: 16),
-                      ],
-                      MetaRow(
-                        year: year,
-                        voteAverage: movie.voteAverage,
-                        runtime: movie.runtime,
-                        genres: genreNames,
-                      ),
-                    ],
+            return _fadeSwitch(
+              Column(
+                key: const ValueKey("content"),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(
+                    context,
+                    headerHeight,
+                    posterPath: movie.posterPath,
+                    title: movie.title,
+                    metaLine: metaLine,
+                    card: card,
+                    onPlay: () => _onPlay(card),
                   ),
-                ),
-                if (_videos.isNotEmpty) TrailersSection(videos: _videos),
-                if (_cast.isNotEmpty) CastSection(cast: _cast),
-                if (_similar.isNotEmpty) _SimilarSection(items: _similar),
-                const SizedBox(height: 30),
-              ],
-            ));
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (movie.overview.isNotEmpty) ...[
+                          ExpandableOverview(text: movie.overview),
+                          const SizedBox(height: 16),
+                        ],
+                        MetaRow(
+                          year: year,
+                          voteAverage: movie.voteAverage,
+                          runtime: movie.runtime,
+                          genres: genreNames,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_videos.isNotEmpty) TrailersSection(videos: _videos),
+                  if (_cast.isNotEmpty) CastSection(cast: _cast),
+                  if (_similar.isNotEmpty) _SimilarSection(items: _similar),
+                  const SizedBox(height: 30),
+                ],
+              ),
+            );
           },
         ),
       ),

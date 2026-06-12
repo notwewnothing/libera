@@ -18,6 +18,7 @@ class AppNavbarScreen extends StatefulWidget {
   State<AppNavbarScreen> createState() => _AppNavbarScreenState();
 }
 
+// ngl ts looks fineee af
 class _AppNavbarScreenState extends State<AppNavbarScreen> {
   int _index = 0;
 
@@ -73,9 +74,7 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
                       ),
                     ),
                   ),
-                  Row(
-                    children: List.generate(_tabs.length, (i) => _tab(i)),
-                  ),
+                  Row(children: List.generate(_tabs.length, (i) => _tab(i))),
                 ],
               ),
             ),

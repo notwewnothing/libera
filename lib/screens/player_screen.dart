@@ -11,6 +11,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 class PlayerScreen extends StatefulWidget {
   final String title;
   final String embedUrl;
+  final String ogUrl;
   final MediaCardData? card;
   final int? season;
   final int? episode;
@@ -20,12 +21,14 @@ class PlayerScreen extends StatefulWidget {
     super.key,
     required this.title,
     required this.embedUrl,
+    required this.ogUrl,
     this.card,
     this.season,
     this.episode,
     this.startAt = 0,
   });
 
+  // useless code cuz idk
   static String _params(double startAt) =>
       '?color=e50914&autoPlay=true&nextEpisode=true&episodeSelector=true'
       '${startAt > 0 ? "&progress=${startAt.round()}" : ""}';
@@ -41,6 +44,9 @@ class PlayerScreen extends StatefulWidget {
     startAt: startAt,
     embedUrl:
         'https://www.vidking.net/embed/movie/${card.id}${_params(startAt)}',
+    ogUrl:
+        // why tf doing nothing somehow makes it work
+        'https://www.vidking.net/embed/movie/${card.id}?color=e50914&autoPlay=true&nextEpisode=true&episodeSelector=true',
   );
 
   factory PlayerScreen.episode({
@@ -60,6 +66,9 @@ class PlayerScreen extends StatefulWidget {
     embedUrl:
         'https://www.vidking.net/embed/tv/${card.id}/$season/$episode'
         '${_params(startAt)}',
+    // i fkn hate my life
+    ogUrl:
+        'https://www.vidking.net/embed/tv/${card.id}/$season/$episode?color=e50914&autoPlay=true&nextEpisode=true&episodeSelector=true',
   );
 
   @override
@@ -113,7 +122,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         NavigationDelegate(
           onPageStarted: (url) {
             if (url.contains('google.')) {
-              _controller.loadRequest(Uri.parse(widget.embedUrl));
+              _controller.loadRequest(Uri.parse(widget.ogUrl));
             }
           },
           onUrlChange: (change) => _onUrlChanged(change.url),
@@ -136,7 +145,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           },
         ),
       )
-      ..loadRequest(Uri.parse(widget.embedUrl));
+      ..loadRequest(Uri.parse(widget.ogUrl));
 
     if (_controller.platform is AndroidWebViewController) {
       (_controller.platform as AndroidWebViewController)

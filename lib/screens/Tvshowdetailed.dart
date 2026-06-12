@@ -544,6 +544,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                           ),
                         ),
                         if (_providers.isNotEmpty)
+                          // i liek dih
                           ProviderLogos(providers: _providers),
                       ],
                     ),
@@ -559,7 +560,8 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                         card.id,
                         isMovie: false,
                       );
-                      final hasResume = resume != null && resume.episode != null;
+                      final hasResume =
+                          resume != null && resume.episode != null;
                       return HeroActionButtons(
                         playLabel: hasResume
                             ? "Resume S${resume.season ?? 1} E${resume.episode}"
