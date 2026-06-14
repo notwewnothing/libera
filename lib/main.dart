@@ -5,9 +5,11 @@ import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
+import 'package:media_kit/media_kit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   await Future.wait([
     WatchlistService.instance.init(),
     WatchedService.instance.init(),

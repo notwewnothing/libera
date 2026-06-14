@@ -11,6 +11,7 @@ import 'package:libera/model/season_details.dart';
 import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/trailer_player.dart';
 import 'package:libera/services/downloads_service.dart';
+import 'package:libera/services/download_manager.dart';
 
 class DetailCircleButton extends StatelessWidget {
   final IconData icon;
@@ -1079,7 +1080,8 @@ class _DownloadSheetState extends State<_DownloadSheet> {
   }
 
   void _downloadEpisode(Episode e, int season) {
-    DownloadsService.instance.downloadEpisode(
+    DownloadManager.instance.downloadEpisode(
+      context,
       widget.show,
       season: season,
       episode: e.episodeNumber,
@@ -1091,9 +1093,21 @@ class _DownloadSheetState extends State<_DownloadSheet> {
 
   Future<void> _downloadSeason(int season) async {
     final eps = await _ensure(season);
-    for (final e in eps) {
-      _downloadEpisode(e, season);
-    }
+    final meta = {
+      for (final e in eps)
+        e.episodeNumber: EpisodeMeta(
+          name: e.name,
+          stillPath: e.stillPath,
+          runtimeLabel: _rt(e),
+        ),
+    };
+    if (!mounted) return;
+    await DownloadManager.instance.downloadSeason(
+      context,
+      widget.show,
+      season,
+      meta: meta,
+    );
   }
 
   @override

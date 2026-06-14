@@ -14,6 +14,7 @@ import 'package:libera/screens/settings_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/downloads_service.dart';
+import 'package:libera/services/download_manager.dart';
 import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
@@ -41,6 +42,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
   bool _showVideo = false;
   bool isMuted = true;
   int? _runtime;
+  int? _year;
 
   @override
   void initState() {
@@ -174,11 +176,12 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
       _snack("Download removed");
       return;
     }
-    DownloadsService.instance.downloadMovie(
+    DownloadManager.instance.downloadMovie(
+      context,
       card,
+      year: _year,
       runtimeLabel: _runtimeLabel(_runtime),
     );
-    _snack("Downloading \"${card.title}\"");
   }
 
   void _snack(String message) {
@@ -317,6 +320,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
             // i hate myselfffffffffff
             final movie = snapshot.data!;
             _runtime = movie.runtime;
+            _year = movie.releaseDate?.year;
             final year = movie.releaseDate?.year.toString();
             final genreNames = movie.genres.map((g) => g.name).toList();
             final metaLine = ["Movie", ...genreNames.take(2)].join("  ·  ");

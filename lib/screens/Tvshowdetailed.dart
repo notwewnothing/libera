@@ -14,6 +14,7 @@ import 'package:libera/screens/settings_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/downloads_service.dart';
+import 'package:libera/services/download_manager.dart';
 import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
@@ -265,7 +266,8 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
   );
 
   void _downloadEpisode(MediaCardData card, Episode e) {
-    DownloadsService.instance.downloadEpisode(
+    DownloadManager.instance.downloadEpisode(
+      context,
       card,
       season: _selectedSeason,
       episode: e.episodeNumber,
@@ -273,7 +275,6 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
       stillPath: e.stillPath,
       runtimeLabel: _episodeRuntime(e),
     );
-    _snack("Downloading \"${e.name}\"");
   }
 
   void _removeEpisodeDownload(Episode e) {
@@ -293,17 +294,6 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
           (await apiServices.fetchSeasonDetails(widget.tvid, season))
               ?.episodes ??
           [],
-    );
-  }
-
-  void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
     );
   }
 

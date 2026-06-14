@@ -1,7 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:libera/common/download_widgets.dart';
+import 'package:libera/screens/offline_player_screen.dart';
 import 'package:libera/services/downloads_service.dart';
+
+/// Open a completed download in the offline player.
+void playDownload(BuildContext context, DownloadEntry entry) {
+  final path = entry.localPath;
+  if (!entry.isCompleted || path == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(entry.isFailed ? "Download failed" : "Still downloading…"),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
+      ),
+    );
+    return;
+  }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => OfflinePlayerScreen(
+        filePath: path,
+        title: entry.isMovie
+            ? entry.title
+            : "${entry.parent.title} · ${entry.title}",
+        card: entry.parent,
+        season: entry.season,
+        episode: entry.episode,
+      ),
+    ),
+  );
+}
 
 Widget _circleBack(BuildContext context) {
   return Padding(
@@ -75,7 +106,9 @@ class DownloadsScreen extends StatelessWidget {
         entry: entry,
         showProgressBar: true,
         onMore: () => _movieMenu(context, entry),
-        onTap: () => _movieMenu(context, entry),
+        onTap: entry.isCompleted
+            ? () => playDownload(context, entry)
+            : () => _movieMenu(context, entry),
       );
     }
     final count = group.entries.length;
@@ -104,6 +137,15 @@ class DownloadsScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (entry.isCompleted)
+              ListTile(
+                leading: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                title: const Text("Play", style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  playDownload(context, entry);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
               title: const Text(
@@ -391,7 +433,9 @@ class _DownloadShowScreenState extends State<DownloadShowScreen> {
                             : () => _episodeMenu(context, e),
                         onTap: _editing
                             ? () => _toggle(e.key)
-                            : () => _episodeMenu(context, e),
+                            : (e.isCompleted
+                                  ? () => playDownload(context, e)
+                                  : () => _episodeMenu(context, e)),
                       );
                     },
                   ),
@@ -489,6 +533,15 @@ class _DownloadShowScreenState extends State<DownloadShowScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (entry.isCompleted)
+              ListTile(
+                leading: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                title: const Text("Play", style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  playDownload(context, entry);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
               title: const Text(
