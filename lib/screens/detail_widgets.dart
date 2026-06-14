@@ -189,6 +189,7 @@ class BlurPill extends StatelessWidget {
 class HeroActionButtons extends StatelessWidget {
   final String playLabel;
   final VoidCallback? onPlay;
+  final VoidCallback? onPlayLongPress;
   final VoidCallback? onMyList;
   final bool inMyList;
   final VoidCallback? onWatched;
@@ -198,6 +199,7 @@ class HeroActionButtons extends StatelessWidget {
     super.key,
     this.playLabel = "Play",
     this.onPlay,
+    this.onPlayLongPress,
     this.onMyList,
     this.inMyList = false,
     this.onWatched,
@@ -211,6 +213,7 @@ class HeroActionButtons extends StatelessWidget {
       children: [
         Pressable(
           onTap: onPlay,
+          onLongPress: onPlayLongPress,
           child: Container(
             height: 50,
             padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -588,6 +591,7 @@ class SeasonEpisodesSection extends StatelessWidget {
   final DownloadEntry? Function(Episode)? downloadStateOf;
   final ValueChanged<Episode>? onDownloadEpisode;
   final ValueChanged<Episode>? onRemoveDownload;
+  final VoidCallback? onOpenDownloadMenu;
 
   const SeasonEpisodesSection({
     super.key,
@@ -602,6 +606,7 @@ class SeasonEpisodesSection extends StatelessWidget {
     this.downloadStateOf,
     this.onDownloadEpisode,
     this.onRemoveDownload,
+    this.onOpenDownloadMenu,
   });
 
   String _runtime(int? r) => (r == null || r <= 0) ? "" : "${r}m";
@@ -777,10 +782,19 @@ class SeasonEpisodesSection extends StatelessWidget {
                     size: 26,
                   ),
                 // newly added downlaod button
-                Padding(
-                  padding: EdgeInsets.only(left: 5),
-                  child: Icon(Icons.download_rounded),
-                ),
+                if (onOpenDownloadMenu != null)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onOpenDownloadMenu,
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(
+                        Icons.download_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -968,6 +982,362 @@ class SeasonEpisodesSection extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// Bottom-sheet submenu for downloading a whole season or individual episodes
+/// from any season. Opened from the season header / hero download buttons.
+Future<void> showDownloadSheet(
+  BuildContext context, {
+  required MediaCardData show,
+  required int seasonCount,
+  required int currentSeason,
+  required List<Episode> currentEpisodes,
+  required Future<List<Episode>> Function(int season) fetchSeasonEpisodes,
+}) {
+  return showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1C1C1E),
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (_) => _DownloadSheet(
+      show: show,
+      seasonCount: seasonCount,
+      currentSeason: currentSeason,
+      currentEpisodes: currentEpisodes,
+      fetchSeasonEpisodes: fetchSeasonEpisodes,
+    ),
+  );
+}
+
+class _DownloadSheet extends StatefulWidget {
+  final MediaCardData show;
+  final int seasonCount;
+  final int currentSeason;
+  final List<Episode> currentEpisodes;
+  final Future<List<Episode>> Function(int season) fetchSeasonEpisodes;
+
+  const _DownloadSheet({
+    required this.show,
+    required this.seasonCount,
+    required this.currentSeason,
+    required this.currentEpisodes,
+    required this.fetchSeasonEpisodes,
+  });
+
+  @override
+  State<_DownloadSheet> createState() => _DownloadSheetState();
+}
+
+class _DownloadSheetState extends State<_DownloadSheet> {
+  final Map<int, List<Episode>> _cache = {};
+  final Set<int> _expanded = {};
+  final Set<int> _loading = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.currentEpisodes.isNotEmpty) {
+      _cache[widget.currentSeason] = widget.currentEpisodes;
+    }
+    _expanded.add(widget.currentSeason);
+    if (!_cache.containsKey(widget.currentSeason)) {
+      _ensure(widget.currentSeason);
+    }
+  }
+
+  String? _rt(Episode e) =>
+      (e.runtime == null || e.runtime! <= 0) ? null : "${e.runtime}m";
+
+  DownloadEntry? _entry(int season, int episode) => DownloadsService.instance
+      .entry(DownloadsService.episodeKey(widget.show.id, season, episode));
+
+  Future<List<Episode>> _ensure(int season) async {
+    if (_cache.containsKey(season)) return _cache[season]!;
+    if (_loading.contains(season)) return const [];
+    setState(() => _loading.add(season));
+    List<Episode> eps = const [];
+    try {
+      eps = await widget.fetchSeasonEpisodes(season);
+    } catch (_) {}
+    if (!mounted) return eps;
+    setState(() {
+      _cache[season] = eps;
+      _loading.remove(season);
+    });
+    return eps;
+  }
+
+  void _toggleExpand(int season) {
+    setState(() {
+      if (!_expanded.add(season)) _expanded.remove(season);
+    });
+    if (_expanded.contains(season)) _ensure(season);
+  }
+
+  void _downloadEpisode(Episode e, int season) {
+    DownloadsService.instance.downloadEpisode(
+      widget.show,
+      season: season,
+      episode: e.episodeNumber,
+      name: e.name,
+      stillPath: e.stillPath,
+      runtimeLabel: _rt(e),
+    );
+  }
+
+  Future<void> _downloadSeason(int season) async {
+    final eps = await _ensure(season);
+    for (final e in eps) {
+      _downloadEpisode(e, season);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxH = MediaQuery.sizeOf(context).height * 0.7;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Row(
+                children: [
+                  const Text(
+                    "Download",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    widget.show.title,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListenableBuilder(
+                listenable: DownloadsService.instance,
+                builder: (context, _) {
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.only(bottom: 8),
+                    itemCount: widget.seasonCount,
+                    itemBuilder: (context, index) => _seasonTile(index + 1),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _seasonTile(int season) {
+    final expanded = _expanded.contains(season);
+    final cached = _cache[season];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => _toggleExpand(season),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                AnimatedRotation(
+                  turns: expanded ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Season $season",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                _seasonDownloadControl(season, cached),
+              ],
+            ),
+          ),
+        ),
+        if (expanded) _episodesList(season, cached),
+        Divider(
+          height: 1,
+          color: Colors.white.withValues(alpha: 0.07),
+          indent: 16,
+          endIndent: 16,
+        ),
+      ],
+    );
+  }
+
+  Widget _seasonDownloadControl(int season, List<Episode>? cached) {
+    if (_loading.contains(season)) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation(downloadAccent),
+        ),
+      );
+    }
+    bool allDownloaded = false;
+    if (cached != null && cached.isNotEmpty) {
+      allDownloaded = cached.every(
+        (e) => _entry(season, e.episodeNumber)?.isCompleted ?? false,
+      );
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: allDownloaded ? null : () => _downloadSeason(season),
+      child: allDownloaded
+          ? Container(
+              width: 26,
+              height: 26,
+              decoration: const BoxDecoration(
+                color: downloadAccent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check, color: Colors.white, size: 16),
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Season",
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.arrow_circle_down_outlined,
+                  color: downloadAccent,
+                  size: 26,
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _episodesList(int season, List<Episode>? cached) {
+    if (_loading.contains(season) && cached == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white24,
+            ),
+          ),
+        ),
+      );
+    }
+    if (cached == null) return const SizedBox.shrink();
+    if (cached.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(46, 0, 16, 14),
+        child: Text(
+          "No episodes found",
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (final e in cached) _episodeRow(season, e),
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+
+  Widget _episodeRow(int season, Episode e) {
+    final entry = _entry(season, e.episodeNumber);
+    return InkWell(
+      onTap: () {
+        if (entry == null) {
+          _downloadEpisode(e, season);
+        } else if (entry.isCompleted) {
+          DownloadsService.instance.remove(entry.key);
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(46, 8, 16, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    e.runtime != null && e.runtime! > 0
+                        ? "Episode ${e.episodeNumber}  ·  ${e.runtime}m"
+                        : "Episode ${e.episodeNumber}",
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    e.name.isEmpty ? "Episode ${e.episodeNumber}" : e.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            DownloadStateIcon(entry: entry, size: 24),
+          ],
+        ),
+      ),
     );
   }
 }

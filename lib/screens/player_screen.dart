@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -12,6 +13,7 @@ class PlayerScreen extends StatefulWidget {
   final String title;
   final String embedUrl;
   final String ogUrl;
+  final String allowedDomain;
   final MediaCardData? card;
   final int? season;
   final int? episode;
@@ -22,32 +24,31 @@ class PlayerScreen extends StatefulWidget {
     required this.title,
     required this.embedUrl,
     required this.ogUrl,
+    required this.allowedDomain,
     this.card,
     this.season,
     this.episode,
     this.startAt = 0,
   });
 
-  // useless code cuz idk
-  static String _params(double startAt) =>
-      '?color=e50914&autoPlay=true&nextEpisode=true&episodeSelector=true'
-      '${startAt > 0 ? "&progress=${startAt.round()}" : ""}';
-
   factory PlayerScreen.movie({
     Key? key,
     required MediaCardData card,
     double startAt = 0,
-  }) => PlayerScreen(
-    key: key,
-    title: card.title,
-    card: card,
-    startAt: startAt,
-    embedUrl:
-        'https://www.vidking.net/embed/movie/${card.id}${_params(startAt)}',
-    ogUrl:
-        // why tf doing nothing somehow makes it work
-        'https://www.vidking.net/embed/movie/${card.id}?color=e50914&autoPlay=true&nextEpisode=true&episodeSelector=true',
-  );
+    MediaPlayer? player,
+  }) {
+    final p = player ?? PlayerService.instance.current;
+    return PlayerScreen(
+      key: key,
+      title: card.title,
+      card: card,
+      startAt: startAt,
+      allowedDomain: p.baseDomain,
+      embedUrl: p.movieUrl(card.id, startAt: startAt),
+      // why tf doing nothing somehow makes it work
+      ogUrl: p.movieUrl(card.id),
+    );
+  }
 
   factory PlayerScreen.episode({
     Key? key,
@@ -56,20 +57,21 @@ class PlayerScreen extends StatefulWidget {
     required int episode,
     required String title,
     double startAt = 0,
-  }) => PlayerScreen(
-    key: key,
-    title: title,
-    card: card,
-    season: season,
-    episode: episode,
-    startAt: startAt,
-    embedUrl:
-        'https://www.vidking.net/embed/tv/${card.id}/$season/$episode'
-        '${_params(startAt)}',
-    // i fkn hate my life
-    ogUrl:
-        'https://www.vidking.net/embed/tv/${card.id}/$season/$episode?color=e50914&autoPlay=true&nextEpisode=true&episodeSelector=true',
-  );
+    MediaPlayer? player,
+  }) {
+    final p = player ?? PlayerService.instance.current;
+    return PlayerScreen(
+      key: key,
+      title: title,
+      card: card,
+      season: season,
+      episode: episode,
+      startAt: startAt,
+      allowedDomain: p.baseDomain,
+      embedUrl: p.episodeUrl(card.id, season, episode, startAt: startAt),
+      ogUrl: p.episodeUrl(card.id, season, episode),
+    );
+  }
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -138,7 +140,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (!url.startsWith('http://') && !url.startsWith('https://')) {
               return NavigationDecision.prevent;
             }
-            if (!url.contains('vidking.net') && !url.contains('google.')) {
+            if (!url.contains(widget.allowedDomain) &&
+                !url.contains('google.')) {
               return NavigationDecision.prevent;
             }
             return NavigationDecision.navigate;

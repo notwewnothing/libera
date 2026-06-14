@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:libera/screens/intro.dart';
 import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 
@@ -11,6 +12,7 @@ void main() async {
     WatchlistService.instance.init(),
     WatchedService.instance.init(),
     ContinueWatchingService.instance.init(),
+    PlayerService.instance.init(),
   ]);
   runApp(const MyApp());
 }

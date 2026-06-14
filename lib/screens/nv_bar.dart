@@ -5,8 +5,10 @@ import 'package:iconsax/iconsax.dart';
 import 'package:libera/screens/downloads_screen.dart';
 import 'package:libera/screens/home.dart';
 import 'package:libera/screens/search.dart';
+import 'package:libera/screens/settings_screen.dart';
 import 'package:libera/screens/watched_screen.dart';
 import 'package:libera/screens/watchlist_screen.dart';
+import 'package:libera/services/player_service.dart';
 import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
@@ -291,6 +293,18 @@ class _LibraryScreen extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+              ),
+            ),
+            _menuItem(
+              context,
+              icon: Iconsax.setting_2,
+              title: "Settings",
+              listenable: PlayerService.instance,
+              subtitleBuilder: () =>
+                  "Player · ${PlayerService.instance.current.name}",
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
               ),
             ),
 

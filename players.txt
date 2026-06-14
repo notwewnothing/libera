@@ -1,0 +1,29 @@
+Player 1:
+tv:
+https://player.vidify.top/embed/tv/tmdbID/Season/Episode?autoplay=true&poster=true&chromecast=false&servericon=true&setting=true&pip=true&logourl=https%3A%2F%2Fi.ibb.co%2F67wTJd9R%2Fpngimg-com-netflix-PNG11.png&font=Roboto&fontcolor=6f63ff&fontsize=20&opacity=0.5&hidepip=true&primarycolor=e01b24&secondarycolor=1f2937&iconcolor=e01b24
+movie:
+https://player.vidify.top/embed/movie/tmdbID?autoplay=true&poster=true&chromecast=false&servericon=true&setting=true&pip=true&logourl=https%3A%2F%2Fi.ibb.co%2F67wTJd9R%2Fpngimg-com-netflix-PNG11.png&font=Roboto&fontcolor=6f63ff&fontsize=20&opacity=0.5&hidepip=true&primarycolor=e01b24&secondarycolor=1f2937&iconcolor=e01b24
+
+Player 2:
+movie:
+https://player.videasy.net/movie/tmdbID?color=EF4444
+tv:
+https://player.videasy.net/tv/show_id/season/episode?color=EF4444&nextEpisode=true&episodeSelector=true&autoplayNextEpisode=true
+
+Player 3:
+movie :
+vidfast.pro/movie/tmdbID?autoplay=true
+tv:
+vidfast.pro/tv/tmdbID/season/episode?autoplay=true
+
+Player 4:
+tv:
+web.nxsha.app/embed/tv/tmdbID/season/episode?lang=en&autoplay=true
+movie:
+web.nxsha.app/embed/movie/tmdbID?lang=en&autoplay=true
+
+Player 5:
+tv:
+https://cinemaos.tech/tv/watch/tmdbID?season=season_number&episode=episode_number
+movie:
+https://cinemaos.tech/movie/watch/tmdbID

@@ -10,9 +10,11 @@ import 'package:libera/model/tv_details.dart';
 import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/detail_widgets.dart';
 import 'package:libera/screens/player_screen.dart';
+import 'package:libera/screens/settings_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/downloads_service.dart';
+import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 import 'package:video_player/video_player.dart';
@@ -37,6 +39,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
 
   List<Episode> _episodes = [];
   int _selectedSeason = 1;
+  int _seasonCount = 1;
   bool _episodesLoading = true;
 
   bool _isVideoReady = false;
@@ -83,6 +86,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     int episodeNumber,
     String? episodeName, {
     int? season,
+    MediaPlayer? player,
   }) {
     final s = season ?? _selectedSeason;
     Navigator.push(
@@ -92,6 +96,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
           card: card,
           season: s,
           episode: episodeNumber,
+          player: player,
           title: episodeName != null && episodeName.isNotEmpty
               ? "$showName · $episodeName"
               : "$showName · S$s E$episodeNumber",
@@ -106,7 +111,11 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
-  void _playResume(MediaCardData card, ContinueWatchingEntry entry) {
+  void _playResume(
+    MediaCardData card,
+    ContinueWatchingEntry entry, {
+    MediaPlayer? player,
+  }) {
     final season = entry.season ?? 1;
     final episode = entry.episode ?? 1;
     String? episodeName;
@@ -118,7 +127,29 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
         }
       }
     }
-    _play(card, card.title, episode, episodeName, season: season);
+    _play(card, card.title, episode, episodeName, season: season, player: player);
+  }
+
+  // Long-pressing the hero Play button switches player for this one playback,
+  // mirroring whatever the normal tap would have done (resume vs first ep).
+  void _onPlayLongPress(MediaCardData card, String showName) async {
+    final player = await showPlayerPicker(context);
+    if (player == null || !mounted) return;
+    final resume = ContinueWatchingService.instance.entryFor(
+      card.id,
+      isMovie: false,
+    );
+    if (resume != null && resume.episode != null) {
+      _playResume(card, resume, player: player);
+    } else {
+      _play(
+        card,
+        showName,
+        _episodes.isNotEmpty ? _episodes.first.episodeNumber : 1,
+        _episodes.isNotEmpty ? _episodes.first.name : null,
+        player: player,
+      );
+    }
   }
 
   void _fetchProviders() async {
@@ -251,22 +282,18 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
-  void _downloadSeason(MediaCardData card) {
-    if (_episodes.isEmpty) {
-      _snack("No episodes to download yet");
-      return;
-    }
-    for (final e in _episodes) {
-      DownloadsService.instance.downloadEpisode(
-        card,
-        season: _selectedSeason,
-        episode: e.episodeNumber,
-        name: e.name,
-        stillPath: e.stillPath,
-        runtimeLabel: _episodeRuntime(e),
-      );
-    }
-    _snack("Downloading Season $_selectedSeason");
+  void _openDownloadSheet(MediaCardData card) {
+    showDownloadSheet(
+      context,
+      show: card,
+      seasonCount: _seasonCount,
+      currentSeason: _selectedSeason,
+      currentEpisodes: _episodes,
+      fetchSeasonEpisodes: (season) async =>
+          (await apiServices.fetchSeasonDetails(widget.tvid, season))
+              ?.episodes ??
+          [],
+    );
   }
 
   void _snack(String message) {
@@ -385,6 +412,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
             }
 
             final show = snapshot.data!;
+            _seasonCount = show.numberOfSeasons;
             final year = show.firstAirDate?.year.toString();
             final genreNames = show.genres.map((g) => g.name).toList();
             final seasonsLabel = show.numberOfSeasons > 0
@@ -463,6 +491,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                       downloadStateOf: _downloadEntryFor,
                       onDownloadEpisode: (e) => _downloadEpisode(card, e),
                       onRemoveDownload: _removeEpisodeDownload,
+                      onOpenDownloadMenu: () => _openDownloadSheet(card),
                     ),
                   ),
                   if (_videos.isNotEmpty) TrailersSection(videos: _videos),
@@ -620,6 +649,8 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                         onPlay: hasResume
                             ? () => _playResume(card, resume)
                             : onPlay,
+                        onPlayLongPress: () =>
+                            _onPlayLongPress(card, card.title),
                         inMyList: WatchlistService.instance.contains(
                           card.id,
                           isMovie: false,
@@ -653,7 +684,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                     color: Colors.white,
                     size: 22,
                   ),
-                  onPressed: () => _downloadSeason(card),
+                  onPressed: () => _openDownloadSheet(card),
                 ),
                 if (_isVideoReady)
                   IconButton(

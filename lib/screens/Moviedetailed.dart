@@ -10,9 +10,11 @@ import 'package:libera/model/movie_video.dart';
 import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/detail_widgets.dart';
 import 'package:libera/screens/player_screen.dart';
+import 'package:libera/screens/settings_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/downloads_service.dart';
+import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 import 'package:video_player/video_player.dart';
@@ -190,12 +192,13 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
     );
   }
 
-  void _onPlay(MediaCardData card) {
+  void _onPlay(MediaCardData card, {MediaPlayer? player}) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerScreen.movie(
           card: card,
+          player: player,
           startAt: ContinueWatchingService.instance.resumePosition(
             card.id,
             isMovie: true,
@@ -203,6 +206,11 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
         ),
       ),
     );
+  }
+
+  void _onPlayLongPress(MediaCardData card) async {
+    final player = await showPlayerPicker(context);
+    if (player != null && mounted) _onPlay(card, player: player);
   }
 
   void _toggleWatched(MediaCardData card) async {
@@ -497,6 +505,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                     ]),
                     builder: (context, _) => HeroActionButtons(
                       onPlay: onPlay,
+                      onPlayLongPress: () => _onPlayLongPress(card),
                       inMyList: WatchlistService.instance.contains(
                         card.id,
                         isMovie: true,
