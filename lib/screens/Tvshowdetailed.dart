@@ -12,6 +12,7 @@ import 'package:libera/screens/detail_widgets.dart';
 import 'package:libera/screens/player_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 import 'package:video_player/video_player.dart';
@@ -225,12 +226,56 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     super.dispose();
   }
 
-  void _onDownload() {
+  String? _episodeRuntime(Episode e) =>
+      (e.runtime == null || e.runtime! <= 0) ? null : "${e.runtime}m";
+
+  DownloadEntry? _downloadEntryFor(Episode e) => DownloadsService.instance.entry(
+    DownloadsService.episodeKey(widget.tvid, _selectedSeason, e.episodeNumber),
+  );
+
+  void _downloadEpisode(MediaCardData card, Episode e) {
+    DownloadsService.instance.downloadEpisode(
+      card,
+      season: _selectedSeason,
+      episode: e.episodeNumber,
+      name: e.name,
+      stillPath: e.stillPath,
+      runtimeLabel: _episodeRuntime(e),
+    );
+    _snack("Downloading \"${e.name}\"");
+  }
+
+  void _removeEpisodeDownload(Episode e) {
+    DownloadsService.instance.remove(
+      DownloadsService.episodeKey(widget.tvid, _selectedSeason, e.episodeNumber),
+    );
+  }
+
+  void _downloadSeason(MediaCardData card) {
+    if (_episodes.isEmpty) {
+      _snack("No episodes to download yet");
+      return;
+    }
+    for (final e in _episodes) {
+      DownloadsService.instance.downloadEpisode(
+        card,
+        season: _selectedSeason,
+        episode: e.episodeNumber,
+        name: e.name,
+        stillPath: e.stillPath,
+        runtimeLabel: _episodeRuntime(e),
+      );
+    }
+    _snack("Downloading Season $_selectedSeason");
+  }
+
+  void _snack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Downloads are coming soon"),
-        backgroundColor: Color(0xFF1A1A1A),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF1A1A1A),
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -396,7 +441,10 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                     ),
                   ),
                   ListenableBuilder(
-                    listenable: WatchedService.instance,
+                    listenable: Listenable.merge([
+                      WatchedService.instance,
+                      DownloadsService.instance,
+                    ]),
                     builder: (context, _) => SeasonEpisodesSection(
                       seasonCount: show.numberOfSeasons,
                       selectedSeason: _selectedSeason,
@@ -412,6 +460,9 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                             e.episodeNumber,
                           ),
                       onToggleWatched: (e) => _toggleEpisodeWatched(card, e),
+                      downloadStateOf: _downloadEntryFor,
+                      onDownloadEpisode: (e) => _downloadEpisode(card, e),
+                      onRemoveDownload: _removeEpisodeDownload,
                     ),
                   ),
                   if (_videos.isNotEmpty) TrailersSection(videos: _videos),
@@ -602,7 +653,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                     color: Colors.white,
                     size: 22,
                   ),
-                  onPressed: _onDownload,
+                  onPressed: () => _downloadSeason(card),
                 ),
                 if (_isVideoReady)
                   IconButton(

@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
@@ -9,6 +10,7 @@ import 'package:libera/model/movie_video.dart';
 import 'package:libera/model/season_details.dart';
 import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/trailer_player.dart';
+import 'package:libera/services/downloads_service.dart';
 
 class DetailCircleButton extends StatelessWidget {
   final IconData icon;
@@ -583,6 +585,9 @@ class SeasonEpisodesSection extends StatelessWidget {
   final ValueChanged<Episode> onPlayEpisode;
   final bool Function(Episode)? isEpisodeWatched;
   final ValueChanged<Episode>? onToggleWatched;
+  final DownloadEntry? Function(Episode)? downloadStateOf;
+  final ValueChanged<Episode>? onDownloadEpisode;
+  final ValueChanged<Episode>? onRemoveDownload;
 
   const SeasonEpisodesSection({
     super.key,
@@ -594,9 +599,113 @@ class SeasonEpisodesSection extends StatelessWidget {
     required this.onPlayEpisode,
     this.isEpisodeWatched,
     this.onToggleWatched,
+    this.downloadStateOf,
+    this.onDownloadEpisode,
+    this.onRemoveDownload,
   });
 
   String _runtime(int? r) => (r == null || r <= 0) ? "" : "${r}m";
+
+  PopupMenuItem<String> _menuRow(
+    String value,
+    String label,
+    IconData icon, {
+    Color color = Colors.white,
+  }) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 46,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Icon(icon, color: color, size: 20),
+        ],
+      ),
+    );
+  }
+
+  void _openEpisodeMenu(BuildContext context, Episode e) async {
+    final entry = downloadStateOf?.call(e);
+    final watched = isEpisodeWatched?.call(e) ?? false;
+
+    final box = context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final position = (box != null && overlay != null)
+        ? RelativeRect.fromRect(
+            Rect.fromPoints(
+              box.localToGlobal(Offset.zero, ancestor: overlay),
+              box.localToGlobal(
+                box.size.bottomRight(Offset.zero),
+                ancestor: overlay,
+              ),
+            ),
+            Offset.zero & overlay.size,
+          )
+        : const RelativeRect.fromLTRB(100, 300, 16, 0);
+
+    final downloadLabel = entry == null
+        ? "Download"
+        : (entry.isCompleted ? "Remove Download" : "Cancel Download");
+    final downloadIcon = entry == null
+        ? Icons.arrow_circle_down_outlined
+        : Icons.delete_outline;
+
+    final result = await showMenu<String>(
+      context: context,
+      position: position,
+      color: const Color(0xFF2C2C2E),
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      items: [
+        _menuRow(
+          "download",
+          downloadLabel,
+          downloadIcon,
+          color: entry != null && entry.isCompleted
+              ? Colors.redAccent
+              : Colors.white,
+        ),
+        _menuRow("play", "Go to Episode", Icons.info_outline),
+        _menuRow(
+          "watched",
+          watched ? "Mark as Unwatched" : "Mark as Watched",
+          watched ? Icons.visibility_off_outlined : Icons.check_circle_outline,
+        ),
+      ],
+    );
+    if (!context.mounted) return;
+    switch (result) {
+      case "download":
+        if (entry == null) {
+          onDownloadEpisode?.call(e);
+        } else {
+          onRemoveDownload?.call(e);
+        }
+      case "play":
+        onPlayEpisode(e);
+      case "watched":
+        onToggleWatched?.call(e);
+      case "share_ep":
+      case "share_show":
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Sharing isn't available yet"),
+            backgroundColor: Color(0xFF1A1A1A),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
+        );
+    }
+  }
 
   void _pickSeason(BuildContext context) {
     if (seasonCount <= 1) return;
@@ -660,12 +769,18 @@ class SeasonEpisodesSection extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+
                 if (seasonCount > 1)
                   const Icon(
                     Icons.keyboard_arrow_down,
                     color: Colors.white,
                     size: 26,
                   ),
+                // newly added downlaod button
+                Padding(
+                  padding: EdgeInsets.only(left: 5),
+                  child: Icon(Icons.download_rounded),
+                ),
               ],
             ),
           ),
@@ -778,7 +893,9 @@ class SeasonEpisodesSection extends StatelessWidget {
                             Row(
                               children: [
                                 Text(
-                                  "EPISODE ${e.episodeNumber}",
+                                  _runtime(e.runtime).isNotEmpty
+                                      ? "EPISODE ${e.episodeNumber}  ·  ${_runtime(e.runtime)}"
+                                      : "EPISODE ${e.episodeNumber}",
                                   style: TextStyle(
                                     color: Colors.white.withValues(alpha: 0.5),
                                     fontSize: 11,
@@ -786,16 +903,34 @@ class SeasonEpisodesSection extends StatelessWidget {
                                     letterSpacing: 0.5,
                                   ),
                                 ),
-                                if (_runtime(e.runtime).isNotEmpty) ...[
-                                  const Spacer(),
-                                  Text(
-                                    _runtime(e.runtime),
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.5,
+                                const Spacer(),
+                                if (onDownloadEpisode != null) ...[
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      final entry = downloadStateOf?.call(e);
+                                      if (entry == null) {
+                                        onDownloadEpisode!(e);
+                                      }
+                                    },
+                                    child: DownloadStateIcon(
+                                      entry: downloadStateOf?.call(e),
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Builder(
+                                    builder: (btnContext) => GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () =>
+                                          _openEpisodeMenu(btnContext, e),
+                                      child: Icon(
+                                        Icons.more_horiz,
+                                        color: Colors.white.withValues(
+                                          alpha: 0.55,
+                                        ),
+                                        size: 22,
                                       ),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],

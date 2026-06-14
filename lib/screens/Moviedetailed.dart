@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
@@ -11,6 +12,7 @@ import 'package:libera/screens/detail_widgets.dart';
 import 'package:libera/screens/player_screen.dart';
 import 'package:libera/services/api_service.dart';
 import 'package:libera/services/continue_watching_service.dart';
+import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 import 'package:video_player/video_player.dart';
@@ -36,6 +38,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
   bool _isVideoReady = false;
   bool _showVideo = false;
   bool isMuted = true;
+  int? _runtime;
 
   @override
   void initState() {
@@ -152,12 +155,37 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
     super.dispose();
   }
 
-  void _onDownload() {
+  String? _runtimeLabel(int? r) {
+    if (r == null || r <= 0) return null;
+    final hours = r ~/ 60;
+    final minutes = r % 60;
+    if (hours > 0) return "${hours}h ${minutes}m";
+    return "${minutes}m";
+  }
+
+  void _onDownload(MediaCardData card) {
+    final already = DownloadsService.instance.has(
+      DownloadsService.movieKey(card.id),
+    );
+    if (already) {
+      DownloadsService.instance.remove(DownloadsService.movieKey(card.id));
+      _snack("Download removed");
+      return;
+    }
+    DownloadsService.instance.downloadMovie(
+      card,
+      runtimeLabel: _runtimeLabel(_runtime),
+    );
+    _snack("Downloading \"${card.title}\"");
+  }
+
+  void _snack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Downloads are coming soon"),
-        backgroundColor: Color(0xFF1A1A1A),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF1A1A1A),
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
       ),
     );
   }
@@ -280,6 +308,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
             }
             // i hate myselfffffffffff
             final movie = snapshot.data!;
+            _runtime = movie.runtime;
             final year = movie.releaseDate?.year.toString();
             final genreNames = movie.genres.map((g) => g.name).toList();
             final metaLine = ["Movie", ...genreNames.take(2)].join("  ·  ");
@@ -497,14 +526,28 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
             top: topPad + 8,
             child: BlurPill(
               children: [
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(
-                    Icons.arrow_downward_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  onPressed: _onDownload,
+                ListenableBuilder(
+                  listenable: DownloadsService.instance,
+                  builder: (context, _) {
+                    final entry = DownloadsService.instance.entry(
+                      DownloadsService.movieKey(card.id),
+                    );
+                    return IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: entry != null && entry.isCompleted
+                          ? const Icon(
+                              Icons.download_done_rounded,
+                              color: downloadAccent,
+                              size: 22,
+                            )
+                          : const Icon(
+                              Icons.arrow_downward_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                      onPressed: () => _onDownload(card),
+                    );
+                  },
                 ),
                 if (_isVideoReady)
                   IconButton(
