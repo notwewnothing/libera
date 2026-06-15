@@ -1,3 +1,6 @@
+from bs4 import builder
+from sys import get_coroutine_origin_tracking_depth
+from os import MFD_HUGE_SHIFT
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -26,6 +29,7 @@ def scrape_directory(url):
     if not table_rows:
         print("No entries found in the file table.")
         return
+
 
     # Define headers for formatting
     header_line = f"{'Name':<20} | {'Type':<12} | {'Relative URL':<20} | {'Full URL'}"
@@ -61,3 +65,5 @@ def scrape_directory(url):
 
 if __name__ == "__main__":
     scrape_directory(BASE_URL)
+
+

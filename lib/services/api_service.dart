@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:http/http.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/action.dart';
@@ -19,6 +21,25 @@ import 'package:libera/model/season_details.dart';
 var key = "api_key=$apikey";
 
 class ApiServices {
+  /// Maps a TMDB id to its IMDB id (`tt…`) via TMDB's external_ids endpoint.
+  /// Stremio addons (AIOStreams) key streams on IMDB ids, so this bridges the
+  /// app's TMDB world to the addon protocol. Returns null when unavailable.
+  Future<String?> getImdbId(int tmdbId, {required bool isMovie}) async {
+    try {
+      final kind = isMovie ? 'movie' : 'tv';
+      final apiUrl = "$baseUrl$kind/$tmdbId/external_ids?$key";
+      final response = await get(Uri.parse(apiUrl));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final imdb = data['imdb_id'];
+        if (imdb is String && imdb.startsWith('tt')) return imdb;
+      }
+    } catch (e) {
+      // Non-fatal: caller falls back to no torrent sources.
+    }
+    return null;
+  }
+
   // all trending (movies + tv shows)
   Future<TrendingAll?> fetchTrending() async {
     try {

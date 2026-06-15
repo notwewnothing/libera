@@ -15,7 +15,12 @@ const _accent = Color(0xFF0A84FF);
 /// fullscreen, gestures, and writes progress back to Continue Watching /
 /// Watched just like the streaming player.
 class OfflinePlayerScreen extends StatefulWidget {
-  final String filePath;
+  /// On-disk file to play (downloaded content). Null when [mediaUrl] is used.
+  final String? filePath;
+
+  /// Network URL to play instead of a file — used for torrent streaming, where
+  /// the libtorrent engine serves the file over a local HTTP URL.
+  final String? mediaUrl;
   final String title;
   final MediaCardData? card;
   final int? season;
@@ -23,12 +28,14 @@ class OfflinePlayerScreen extends StatefulWidget {
 
   const OfflinePlayerScreen({
     super.key,
-    required this.filePath,
+    this.filePath,
+    this.mediaUrl,
     required this.title,
     this.card,
     this.season,
     this.episode,
-  });
+  }) : assert(filePath != null || mediaUrl != null,
+            'Provide either a filePath or a mediaUrl');
 
   @override
   State<OfflinePlayerScreen> createState() => _OfflinePlayerScreenState();
@@ -44,6 +51,7 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
   double _startAt = 0;
   bool _seeked = false;
   bool _ended = false;
+  bool _buffering = true;
   DateTime _lastSave = DateTime.now();
 
   MediaCardData? get _card => widget.card;
@@ -81,8 +89,12 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
     _subs.add(_player.stream.completed.listen((done) {
       if (done) _onEnded();
     }));
+    _subs.add(_player.stream.buffering.listen((b) {
+      if (mounted && b != _buffering) setState(() => _buffering = b);
+    }));
 
-    _player.open(Media(Uri.file(widget.filePath).toString()));
+    final source = widget.mediaUrl ?? Uri.file(widget.filePath!).toString();
+    _player.open(Media(source));
   }
 
   double _resumeFrom() {
@@ -155,10 +167,24 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
       body: MaterialVideoControlsTheme(
         normal: theme,
         fullscreen: fsTheme,
-        child: Video(
-          controller: _controller,
-          controls: MaterialVideoControls,
-          fit: BoxFit.contain,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Video(
+              controller: _controller,
+              controls: MaterialVideoControls,
+              fit: BoxFit.contain,
+            ),
+            if (_buffering)
+              const IgnorePointer(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: _accent,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

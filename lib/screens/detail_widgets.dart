@@ -1,7 +1,9 @@
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/utils.dart';
@@ -12,6 +14,7 @@ import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/trailer_player.dart';
 import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/download_manager.dart';
+import 'package:media_kit/ffi/src/allocation.dart';
 
 class DetailCircleButton extends StatelessWidget {
   final IconData icon;
@@ -592,6 +595,7 @@ class SeasonEpisodesSection extends StatelessWidget {
   final DownloadEntry? Function(Episode)? downloadStateOf;
   final ValueChanged<Episode>? onDownloadEpisode;
   final ValueChanged<Episode>? onRemoveDownload;
+  final ValueChanged<Episode>? onTorrentEpisode;
   final VoidCallback? onOpenDownloadMenu;
 
   const SeasonEpisodesSection({
@@ -607,6 +611,7 @@ class SeasonEpisodesSection extends StatelessWidget {
     this.downloadStateOf,
     this.onDownloadEpisode,
     this.onRemoveDownload,
+    this.onTorrentEpisode,
     this.onOpenDownloadMenu,
   });
 
@@ -934,6 +939,20 @@ class SeasonEpisodesSection extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 12),
+                                  if (onTorrentEpisode != null) ...[
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () => onTorrentEpisode!(e),
+                                      child: Icon(
+                                        Icons.bolt_rounded,
+                                        color: Colors.white.withValues(
+                                          alpha: 0.55,
+                                        ),
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                  ],
                                   Builder(
                                     builder: (btnContext) => GestureDetector(
                                       behavior: HitTestBehavior.opaque,
@@ -987,8 +1006,8 @@ class SeasonEpisodesSection extends StatelessWidget {
   }
 }
 
-/// Bottom-sheet submenu for downloading a whole season or individual episodes
-/// from any season. Opened from the season header / hero download buttons.
+// Bottom-sheet submenu for downloading a whole season or individual episodes
+// from any season. Opened from the season header / hero download buttons.
 Future<void> showDownloadSheet(
   BuildContext context, {
   required MediaCardData show,

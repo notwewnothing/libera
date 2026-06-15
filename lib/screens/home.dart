@@ -581,7 +581,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
             left: 20,
             child: const IgnorePointer(
               child: Text(
-                "Dih 🥀",
+                "Libera",
                 style: TextStyle(
                   color: Color.fromARGB(255, 255, 0, 0),
                   fontSize: 32,

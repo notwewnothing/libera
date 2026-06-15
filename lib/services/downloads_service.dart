@@ -66,7 +66,8 @@ class DownloadEntry {
       return <String>[?runtimeLabel, ?size].join(" · ").ifEmptyThen("Movie");
     }
     final parts = <String>["Episode $episode"];
-    if (runtimeLabel != null && runtimeLabel!.isNotEmpty) parts.add(runtimeLabel!);
+    if (runtimeLabel != null && runtimeLabel!.isNotEmpty)
+      parts.add(runtimeLabel!);
     if (size != null) parts.add(size);
     return parts.join(" · ");
   }
@@ -138,9 +139,11 @@ class DownloadsService extends ChangeNotifier {
 
   List<DownloadEntry> get all => List.unmodifiable(_entries);
   List<DownloadEntry> get downloading => _entries
-      .where((e) =>
-          e.status == DownloadStatus.downloading ||
-          e.status == DownloadStatus.queued)
+      .where(
+        (e) =>
+            e.status == DownloadStatus.downloading ||
+            e.status == DownloadStatus.queued,
+      )
       .toList();
   List<DownloadEntry> get completed =>
       _entries.where((e) => e.isCompleted).toList();
@@ -167,11 +170,7 @@ class DownloadsService extends ChangeNotifier {
       final groupKey = e.isMovie ? "movie:${e.parent.id}" : "tv:${e.parent.id}";
       var group = byKey[groupKey];
       if (group == null) {
-        group = DownloadGroup(
-          media: e.parent,
-          isMovie: e.isMovie,
-          entries: [],
-        );
+        group = DownloadGroup(media: e.parent, isMovie: e.isMovie, entries: []);
         byKey[groupKey] = group;
         order.add(groupKey);
       }
@@ -220,7 +219,9 @@ class DownloadsService extends ChangeNotifier {
       fileName: source?.fileName,
       qualityLabel: source?.quality.label,
       totalBytes: source?.sizeBytes ?? -1,
-      status: source != null ? DownloadStatus.queued : DownloadStatus.downloading,
+      status: source != null
+          ? DownloadStatus.queued
+          : DownloadStatus.downloading,
     );
     _entries.add(e);
     _start(e);
@@ -251,7 +252,9 @@ class DownloadsService extends ChangeNotifier {
       fileName: source?.fileName,
       qualityLabel: source?.quality.label,
       totalBytes: source?.sizeBytes ?? -1,
-      status: source != null ? DownloadStatus.queued : DownloadStatus.downloading,
+      status: source != null
+          ? DownloadStatus.queued
+          : DownloadStatus.downloading,
     );
     _entries.add(e);
     _start(e);
@@ -261,7 +264,8 @@ class DownloadsService extends ChangeNotifier {
   /// Retry a failed entry.
   void retry(String key) {
     final e = entry(key);
-    if (e == null || !e.isReal || e.status == DownloadStatus.downloading) return;
+    if (e == null || !e.isReal || e.status == DownloadStatus.downloading)
+      return;
     e.error = null;
     e.status = DownloadStatus.queued;
     _start(e);
@@ -328,7 +332,9 @@ class DownloadsService extends ChangeNotifier {
     IOSink? sink;
     try {
       final dir = await _downloadsDir();
-      final file = File('${dir.path}/${_safeName(e.fileName ?? '${e.key}.mkv')}');
+      final file = File(
+        '${dir.path}/${_safeName(e.fileName ?? '${e.key}.mkv')}',
+      );
       var existing = await file.exists() ? await file.length() : 0;
       if (e.totalBytes > 0 && existing >= e.totalBytes) {
         _finish(e, file);
@@ -340,8 +346,8 @@ class DownloadsService extends ChangeNotifier {
       final total = e.totalBytes > 0
           ? e.totalBytes
           : ((resp.contentLength ?? -1) >= 0
-              ? resp.contentLength! + existing
-              : -1);
+                ? resp.contentLength! + existing
+                : -1);
 
       e.status = DownloadStatus.downloading;
       e.totalBytes = total;

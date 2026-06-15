@@ -52,7 +52,10 @@ dependencies:
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.7
-  
+  # Torrent streaming/downloading engine (native FFI; same plugin PlayTorrioV2 uses).
+  libtorrent_flutter: 1.8.5
+  flutter_foreground_task: ^9.2.2
+
 
  
 

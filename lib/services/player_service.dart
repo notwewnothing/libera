@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A streaming source ("player"). URL templates use these tokens:
@@ -99,9 +100,57 @@ const List<MediaPlayer> kPlayers = [
     tvTemplate:
         'https://cinemaos.tech/tv/watch/{id}?season={season}&episode={episode}',
   ),
+  // ---- Added from the fmhy.net streaming/embed list (each probed live with a
+  // known TMDB id; see testing/probe_players.sh). All four load directly on
+  // their own registrable domain with no cross-domain top-level redirect, so
+  // PlayerScreen's domain whitelist (baseDomain) doesn't block them.
+  MediaPlayer(
+    // Modern player; reflects the TMDB id and ships hls.js + jwplayer.
+    id: 'vidlink',
+    name: 'VidLink',
+    movieTemplate:
+        'https://vidlink.pro/movie/{id}?primaryColor=e50914&autoplay=true',
+    tvTemplate:
+        'https://vidlink.pro/tv/{id}/{season}/{episode}?primaryColor=e50914&autoplay=true&nextButton=true',
+  ),
+  MediaPlayer(
+    // Classic multi-server. Resolved the correct movie *and* episode titles for
+    // the probe ids, and its /embed/tv/{id}/{s}/{e} shape matches the
+    // episode-change detector in player_screen so auto-advance tracking works.
+    id: 'vidsrc',
+    name: 'VidSrc',
+    movieTemplate: 'https://vidsrcme.ru/embed/movie/{id}',
+    tvTemplate: 'https://vidsrcme.ru/embed/tv/{id}/{season}/{episode}',
+  ),
+  MediaPlayer(
+    // 2Embed multi-server; resolved the correct movie title for the probe id.
+    id: '2embed',
+    name: '2Embed',
+    movieTemplate: 'https://www.2embed.skin/embed/{id}',
+    tvTemplate: 'https://www.2embed.skin/embedtv/{id}&s={season}&e={episode}',
+  ),
+  MediaPlayer(
+    id: '111movies',
+    name: '111Movies',
+    movieTemplate: 'https://111movies.net/movie/{id}',
+    tvTemplate: 'https://111movies.net/tv/{id}/{season}/{episode}',
+  ),
+  // ---- From PlayTorrioV2's embed provider list (probed live, on-domain).
+  MediaPlayer(
+    id: 'vixsrc',
+    name: 'VixSrc',
+    movieTemplate: 'https://vixsrc.to/movie/{id}/',
+    tvTemplate: 'https://vixsrc.to/tv/{id}/{season}/{episode}/',
+  ),
+  MediaPlayer(
+    id: 'vidnest',
+    name: 'VidNest',
+    movieTemplate: 'https://vidnest.fun/movie/{id}',
+    tvTemplate: 'https://vidnest.fun/tv/{id}/{season}/{episode}',
+  ),
 ];
 
-/// local storage
+// local storage
 class PlayerService extends ChangeNotifier {
   PlayerService._();
   static final PlayerService instance = PlayerService._();

@@ -1,8 +1,16 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/torrent_sources_sheet.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
+import 'package:libera/model/drama.dart';
 import 'package:libera/model/media_list.dart';
 import 'package:libera/model/movie_video.dart';
 import 'package:libera/model/season_details.dart';
@@ -18,7 +26,11 @@ import 'package:libera/services/download_manager.dart';
 import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video_controls/media_kit_video_controls.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_explode_dart/js_challenge.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class TvShowDetailedScreen extends StatefulWidget {
@@ -128,7 +140,14 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
         }
       }
     }
-    _play(card, card.title, episode, episodeName, season: season, player: player);
+    _play(
+      card,
+      card.title,
+      episode,
+      episodeName,
+      season: season,
+      player: player,
+    );
   }
 
   // Long-pressing the hero Play button switches player for this one playback,
@@ -261,9 +280,14 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
   String? _episodeRuntime(Episode e) =>
       (e.runtime == null || e.runtime! <= 0) ? null : "${e.runtime}m";
 
-  DownloadEntry? _downloadEntryFor(Episode e) => DownloadsService.instance.entry(
-    DownloadsService.episodeKey(widget.tvid, _selectedSeason, e.episodeNumber),
-  );
+  DownloadEntry? _downloadEntryFor(Episode e) =>
+      DownloadsService.instance.entry(
+        DownloadsService.episodeKey(
+          widget.tvid,
+          _selectedSeason,
+          e.episodeNumber,
+        ),
+      );
 
   void _downloadEpisode(MediaCardData card, Episode e) {
     DownloadManager.instance.downloadEpisode(
@@ -277,9 +301,25 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
+  void _onTorrentsEpisode(MediaCardData card, Episode e) {
+    showTorrentSources(
+      context,
+      card: card,
+      tmdbId: widget.tvid,
+      isMovie: false,
+      season: _selectedSeason,
+      episode: e.episodeNumber,
+      title: "${card.title} · S$_selectedSeason E${e.episodeNumber}",
+    );
+  }
+
   void _removeEpisodeDownload(Episode e) {
     DownloadsService.instance.remove(
-      DownloadsService.episodeKey(widget.tvid, _selectedSeason, e.episodeNumber),
+      DownloadsService.episodeKey(
+        widget.tvid,
+        _selectedSeason,
+        e.episodeNumber,
+      ),
     );
   }
 
@@ -291,8 +331,10 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
       currentSeason: _selectedSeason,
       currentEpisodes: _episodes,
       fetchSeasonEpisodes: (season) async =>
-          (await apiServices.fetchSeasonDetails(widget.tvid, season))
-              ?.episodes ??
+          (await apiServices.fetchSeasonDetails(
+            widget.tvid,
+            season,
+          ))?.episodes ??
           [],
     );
   }
@@ -481,6 +523,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                       downloadStateOf: _downloadEntryFor,
                       onDownloadEpisode: (e) => _downloadEpisode(card, e),
                       onRemoveDownload: _removeEpisodeDownload,
+                      onTorrentEpisode: (e) => _onTorrentsEpisode(card, e),
                       onOpenDownloadMenu: () => _openDownloadSheet(card),
                     ),
                   ),

@@ -237,10 +237,43 @@ class ShowResult {
 }
 
 // ---------------------------------------------------------------------------
+// Source interface
+// ---------------------------------------------------------------------------
+
+/// A pluggable movie/TV download backend. Each implementation resolves a title
+/// to directly-downloadable [VideoFile]s — fetching a [VideoFile.pageUrl] with
+/// redirects followed must stream the actual file bytes (ideally with
+/// `Accept-Ranges: bytes` so [DownloadsService] can resume).
+///
+/// Both the 111477 open-directory ([IndexScraper]) and vadapav.mov
+/// ([VadapavSource]) implement this, so the app can offer several download
+/// sites the same way it offers several players.
+abstract interface class DownloadSource {
+  /// Stable id (persisted as the selected source).
+  String get id;
+
+  /// Human-readable name shown in the picker.
+  String get name;
+
+  /// Resolve a movie by [title] (+ optional [year]) to its candidate sources.
+  Future<MovieResult?> resolveMovie(String title, {int? year});
+
+  /// Resolve a show by [title] to its season directories.
+  Future<ShowResult?> resolveShow(String title);
+
+  /// Resolve a single season (from a [SeasonRef] this source produced) to
+  /// episodes + grouped release variants.
+  Future<SeasonResult> resolveSeason(SeasonRef ref);
+
+  /// Release any held resources (e.g. the HTTP client).
+  void close();
+}
+
+// ---------------------------------------------------------------------------
 // Scraper
 // ---------------------------------------------------------------------------
 
-class IndexScraper {
+class IndexScraper implements DownloadSource {
   IndexScraper({
     http.Client? client,
     this.minRequestGap = const Duration(milliseconds: 1200),
@@ -271,6 +304,13 @@ class IndexScraper {
   Future<void> _gate = Future<void>.value();
   DateTime _lastRequest = DateTime.fromMillisecondsSinceEpoch(0);
 
+  @override
+  String get id => 'index111477';
+
+  @override
+  String get name => '111477 Directory';
+
+  @override
   void close() => _client.close();
 
   /// Run [action] serialized behind the request gate, after honouring the
@@ -330,6 +370,7 @@ class IndexScraper {
 
   /// Resolve a movie by [title] (and optional [year]) to its sources.
   /// Tries direct folder guesses first, falls back to a fuzzy root search.
+  @override
   Future<MovieResult?> resolveMovie(String title, {int? year}) async {
     final dir = await _findDir(
       title,
@@ -351,6 +392,7 @@ class IndexScraper {
   // ---- TV -----------------------------------------------------------------
 
   /// Resolve a show by [title] to its season directories.
+  @override
   Future<ShowResult?> resolveShow(String title) async {
     final dir = await _findDir(
       title,
@@ -369,6 +411,7 @@ class IndexScraper {
       _rankMatches(query, await _loadTvCache(), limit: limit);
 
   /// Resolve a single season directory to episodes + grouped variants.
+  @override
   Future<SeasonResult> resolveSeason(SeasonRef ref) async {
     final videos = videoFilesFrom(await listDir(ref.url), tv: true);
 

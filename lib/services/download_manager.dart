@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:libera/common/download_picker.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/services/download_source_service.dart';
 import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/index_scraper.dart';
 
@@ -21,17 +22,21 @@ class DownloadManager {
   DownloadManager._();
   static final DownloadManager instance = DownloadManager._();
 
-  final IndexScraper _scraper = IndexScraper();
+  /// The active download backend (user-selectable, see DownloadSourceService).
+  DownloadSource get _scraper => DownloadSourceService.instance.current;
 
   // Per-title caches so picking several episodes only resolves the season once.
-  final Map<int, Future<ShowResult?>> _shows = {};
+  // Keyed by source id too, so switching sources never returns stale results.
+  final Map<String, Future<ShowResult?>> _shows = {};
   final Map<String, Future<SeasonResult>> _seasons = {};
 
-  Future<ShowResult?> _show(MediaCardData show) =>
-      _shows.putIfAbsent(show.id, () => _scraper.resolveShow(show.title));
+  Future<ShowResult?> _show(MediaCardData show) => _shows.putIfAbsent(
+    '${_scraper.id}:${show.id}',
+    () => _scraper.resolveShow(show.title),
+  );
 
   Future<SeasonResult>? _seasonCached(int showId, int season) =>
-      _seasons['$showId:$season'];
+      _seasons['${_scraper.id}:$showId:$season'];
 
   // ---- Movies -------------------------------------------------------------
 
@@ -178,7 +183,7 @@ class DownloadManager {
     }
     if (ref == null) return null;
     final future = _scraper.resolveSeason(ref);
-    _seasons['${show.id}:$season'] = future;
+    _seasons['${_scraper.id}:${show.id}:$season'] = future;
     return future;
   }
 

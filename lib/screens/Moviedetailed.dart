@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/torrent_sources_sheet.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
 import 'package:libera/model/media_list.dart';
@@ -181,6 +182,15 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
       card,
       year: _year,
       runtimeLabel: _runtimeLabel(_runtime),
+    );
+  }
+
+  void _onTorrents(MediaCardData card) {
+    showTorrentSources(
+      context,
+      card: card,
+      tmdbId: widget.movieid,
+      isMovie: true,
     );
   }
 
@@ -561,6 +571,16 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                       onPressed: () => _onDownload(card),
                     );
                   },
+                ),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Torrent sources',
+                  icon: const Icon(
+                    Icons.bolt_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                  onPressed: () => _onTorrents(card),
                 ),
                 if (_isVideoReady)
                   IconButton(
