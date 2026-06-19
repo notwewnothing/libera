@@ -216,26 +216,12 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile $zip
           Expand-Archive -Path $zip -DestinationPath $dest -Force
           Get-ChildItem -Recurse $dest | Select-Object -ExpandProperty FullName
-      # flutter_inappwebview_windows 0.6.0 uses <experimental/coroutine> which
-      # MSVC 14.40+ (VS 2022 17.10+) turns into a hard error. Silence the
-      # deprecation warning by patching the pub-cache CMakeLists.
-      - name: Patch inappwebview_windows coroutine deprecation (MSVC compat)
-        run: |
-          $cache = if ($env:PUB_CACHE) { $env:PUB_CACHE } else { "$env:LOCALAPPDATA\Pub\Cache" }
-          $cmake = Get-ChildItem "$cache\hosted\pub.dev" -Recurse -Filter "CMakeLists.txt" |
-            Where-Object { $_.FullName -match 'flutter_inappwebview_windows' } |
-            Select-Object -First 1
-          if (-not $cmake) { Write-Warning "inappwebview_windows CMakeLists not found"; exit 0 }
-          $content = Get-Content $cmake.FullName -Raw
-          $patch = "  target_compile_definitions(`${TARGET} PRIVATE `"_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS`")"
-          if ($content -notmatch '_SILENCE_EXPERIMENTAL_COROUTINE') {
-            $content = $content -replace '(function\(FLUTTER_INAPPWEBVIEW_WINDOWS_APPLY_STANDARD_SETTINGS TARGET\))', "`$1`n$patch"
-            Set-Content -Path $cmake.FullName -Value $content -NoNewline
-            Write-Host "Patched: $($cmake.FullName)"
-          } else {
-            Write-Host "Already patched."
-          }
       - name: Build Windows
+        # flutter_inappwebview_windows includes <experimental/coroutine>, which the
+        # latest MSVC turns into a hard error (STL1011). The CL env var injects the
+        # silence macro into every cl.exe invocation without patching the plugin.
+        env:
+          CL: /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
         run: flutter build windows --release --build-name=$env:VERSION --build-number=$env:BUILD_NUMBER
       - name: Package bundle
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "libera-$env:VERSION-windows-x64.zip"
@@ -342,6 +328,8 @@ jobs:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: flutter pub get
       - name: Build Web
+        # --no-tree-shake-icons: the icon font subsetter crashes on a codepoint-0
+        # glyph (IconTreeShakerException); shipping the full icon fonts avoids it.
         run: flutter build web --release --no-tree-shake-icons --build-name="$VERSION" --build-number="$BUILD_NUMBER"
       - name: Package
         run: (cd build/web && zip -r "$GITHUB_WORKSPACE/libera-${VERSION}-web.zip" .)
