@@ -1,0 +1,318 @@
+name: Release
+
+# Builds libera for every supported platform and publishes a GitHub Release
+# with all artifacts attached.
+#
+# Triggers:
+#   • Push a tag like v1.2.3            -> builds + releases that version.
+#   • Manual run (Actions > Release)   -> provide a version, optionally mark prerelease.
+#
+# Notes on signing / distribution:
+#   • Android APK is signed with the Flutter debug key (installable via sideload).
+#     To ship a properly-signed APK, add a keystore + secrets and a signingConfig
+#     in android/app/build.gradle.kts (see the commented block in the android job).
+#   • macOS .app is ad-hoc signed (not notarized) — users may need to run
+#     `xattr -dr com.apple.quarantine libera.app` after unzipping.
+#   • iOS .ipa is UNSIGNED — for sideloading (AltStore / Sideloadly / TrollStore),
+#     not for the App Store.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build & release, e.g. 1.2.3"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease"
+        required: false
+        type: boolean
+        default: false
+
+# Allow the release job to create tags/releases and upload assets.
+permissions:
+  contents: write
+
+# Don't waste minutes on superseded runs for the same ref.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Channel used for every build. Pin a specific version here (e.g. "3.41.0")
+  # for fully reproducible builds; the Dart constraint in pubspec.yaml is ^3.12.1.
+  FLUTTER_CHANNEL: stable
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Resolve version / tag / build number once, share with every build job.
+  # ---------------------------------------------------------------------------
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      build_number: ${{ steps.meta.outputs.build_number }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+            TAG="v${VERSION}"
+            PRERELEASE="${{ inputs.prerelease }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+            # Treat tags like v1.2.3-beta.1 as prereleases automatically.
+            case "$VERSION" in *-*) PRERELEASE=true ;; *) PRERELEASE=false ;; esac
+          fi
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "build_number=${{ github.run_number }}"
+            echo "prerelease=${PRERELEASE}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved version=${VERSION} tag=${TAG} build=${{ github.run_number }} prerelease=${PRERELEASE}"
+
+  # ---------------------------------------------------------------------------
+  # Android — universal release APK (debug-signed).
+  # ---------------------------------------------------------------------------
+  android:
+    needs: prepare
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+
+      # To publish a *properly signed* APK/AAB instead of debug-signed, add the
+      # base64 keystore + passwords as repo secrets and a signingConfig in
+      # android/app/build.gradle.kts, then decode the keystore here, e.g.:
+      #   echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/app/release.jks
+
+      - name: Build APK
+        run: flutter build apk --release --build-name="$VERSION" --build-number="$BUILD_NUMBER"
+      - name: Rename artifact
+        run: mv build/app/outputs/flutter-apk/app-release.apk "libera-${VERSION}-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: libera-${{ env.VERSION }}-android.apk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Linux — x64 desktop bundle (tar.gz). Built on 22.04 for broader glibc compat.
+  # ---------------------------------------------------------------------------
+  linux:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          # GTK/desktop toolchain + media_kit (libmpv) + libtorrent_flutter
+          # source-build fallback deps (Boost/OpenSSL) + libsecret.
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libstdc++-12-dev \
+            libmpv-dev mpv \
+            libsecret-1-dev \
+            libboost-dev libssl-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter --version
+      - run: flutter config --enable-linux-desktop
+      - run: flutter pub get
+      - name: Build Linux
+        run: flutter build linux --release --build-name="$VERSION" --build-number="$BUILD_NUMBER"
+      - name: Package bundle
+        run: tar -czf "libera-${VERSION}-linux-x64.tar.gz" -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: libera-${{ env.VERSION }}-linux-x64.tar.gz
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Windows — x64 desktop build (zip).
+  # ---------------------------------------------------------------------------
+  windows:
+    needs: prepare
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter --version
+      - run: flutter config --enable-windows-desktop
+      - run: flutter pub get
+      - name: Build Windows
+        run: flutter build windows --release --build-name=$env:VERSION --build-number=$env:BUILD_NUMBER
+      - name: Package bundle
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "libera-$env:VERSION-windows-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: libera-${{ env.VERSION }}-windows-x64.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # macOS — .app bundle, ad-hoc signed, zipped with ditto (preserves symlinks).
+  # ---------------------------------------------------------------------------
+  macos:
+    needs: prepare
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native build deps (libtorrent_flutter fallback)
+        run: brew install boost pkg-config || true
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter --version
+      - run: flutter config --enable-macos-desktop
+      - run: flutter pub get
+      - name: Build macOS
+        run: flutter build macos --release --build-name="$VERSION" --build-number="$BUILD_NUMBER"
+      - name: Ad-hoc sign & package
+        run: |
+          APP="build/macos/Build/Products/Release/libera.app"
+          codesign --force --deep --sign - "$APP"
+          ditto -c -k --keepParent "$APP" "libera-${VERSION}-macos.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: libera-${{ env.VERSION }}-macos.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # iOS — UNSIGNED .ipa for sideloading (no Apple Developer account required).
+  # ---------------------------------------------------------------------------
+  ios:
+    needs: prepare
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - name: Build iOS (no codesign)
+        run: flutter build ios --release --no-codesign --build-name="$VERSION" --build-number="$BUILD_NUMBER"
+      - name: Package unsigned IPA
+        run: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          mv Runner.app Payload/Runner.app
+          zip -r -y "$GITHUB_WORKSPACE/libera-${VERSION}-ios.ipa" Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: libera-${{ env.VERSION }}-ios.ipa
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Web — release build (zip). Unzip into any static host's web root.
+  # ---------------------------------------------------------------------------
+  web:
+    needs: prepare
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - run: flutter --version
+      - run: flutter pub get
+      - name: Build Web
+        run: flutter build web --release --build-name="$VERSION" --build-number="$BUILD_NUMBER"
+      - name: Package
+        run: (cd build/web && zip -r "$GITHUB_WORKSPACE/libera-${VERSION}-web.zip" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: libera-${{ env.VERSION }}-web.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Gather every artifact and publish the GitHub Release.
+  # ---------------------------------------------------------------------------
+  release:
+    needs: [prepare, android, linux, windows, macos, ios, web]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: List artifacts
+        run: ls -lh dist
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: libera ${{ needs.prepare.outputs.version }}
+          draft: false
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
+          body: |
+            ## libera ${{ needs.prepare.outputs.version }}
+
+            ### Downloads
+            | Platform | File |
+            |----------|------|
+            | Android  | `libera-${{ needs.prepare.outputs.version }}-android.apk` |
+            | Windows  | `libera-${{ needs.prepare.outputs.version }}-windows-x64.zip` |
+            | macOS    | `libera-${{ needs.prepare.outputs.version }}-macos.zip` |
+            | Linux    | `libera-${{ needs.prepare.outputs.version }}-linux-x64.tar.gz` |
+            | iOS      | `libera-${{ needs.prepare.outputs.version }}-ios.ipa` (unsigned, sideload) |
+            | Web      | `libera-${{ needs.prepare.outputs.version }}-web.zip` |
+
+            ### Install notes
+            - **Android:** APK is debug-signed; enable "install from unknown sources".
+            - **Linux:** requires `mpv` / `libmpv` installed on the host for playback.
+            - **macOS:** unsigned — run `xattr -dr com.apple.quarantine libera.app` if Gatekeeper blocks it.
+            - **iOS:** unsigned `.ipa` — install via AltStore / Sideloadly / TrollStore.

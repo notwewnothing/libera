@@ -1,4 +1,4 @@
-package com.example.libera
+package io.github.notwewnothing.libera
 
 import io.flutter.embedding.android.FlutterActivity
 

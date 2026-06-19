@@ -8,7 +8,7 @@
 PRODUCT_NAME = libera
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.libera
+PRODUCT_BUNDLE_IDENTIFIER = io.github.notwewnothing.libera
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 io.github.notwewnothing. All rights reserved.
