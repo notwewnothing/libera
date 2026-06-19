@@ -4,6 +4,7 @@ name: Release
 # with all artifacts attached.
 #
 # Triggers:
+
 #   • Push a tag like v1.2.3            -> builds + releases that version.
 #   • Manual run (Actions > Release)   -> provide a version, optionally mark prerelease.
 #
@@ -99,7 +100,22 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
       - run: flutter --version
+      - name: Generate secrets.dart
+        run: .github/scripts/gen-secrets.sh
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: flutter pub get
+
+      # flutter_inappwebview_android 1.1.3 (transitive) references the deprecated
+      # getDefaultProguardFile('proguard-android.txt'), which AGP 9 rejects.
+      # Patch the pub-cache copy to the optimize file (same fix as the local cache).
+      - name: Patch inappwebview proguard (AGP 9 compat)
+        run: |
+          CACHE="${PUB_CACHE:-$HOME/.pub-cache}"
+          grep -rlF "getDefaultProguardFile('proguard-android.txt')" "$CACHE" 2>/dev/null | while read -r f; do
+            sed -i "s/getDefaultProguardFile('proguard-android.txt')/getDefaultProguardFile('proguard-android-optimize.txt')/g" "$f"
+            echo "patched: $f"
+          done
 
       # To publish a *properly signed* APK/AAB instead of debug-signed, add the
       # base64 keystore + passwords as repo secrets and a signingConfig in
@@ -143,6 +159,10 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
       - run: flutter --version
+      - name: Generate secrets.dart
+        run: .github/scripts/gen-secrets.sh
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: flutter config --enable-linux-desktop
       - run: flutter pub get
       - name: Build Linux
@@ -171,8 +191,31 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
       - run: flutter --version
+      - name: Generate secrets.dart
+        run: .github/scripts/gen-secrets.sh
+        shell: bash
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: flutter config --enable-windows-desktop
       - run: flutter pub get
+      # The libtorrent_flutter CMake step downloads a prebuilt zip and extracts it
+      # via `cmake -E tar` into the pub-cache through Flutter's plugin symlink,
+      # which libarchive refuses ("Cannot extract through symlink"). Pre-seed the
+      # DLLs directly into the real pub-cache dir so CMake finds them and skips it.
+      - name: Pre-seed libtorrent_flutter native lib
+        run: |
+          $cache = if ($env:PUB_CACHE) { $env:PUB_CACHE } else { "$env:LOCALAPPDATA\Pub\Cache" }
+          $base = Get-ChildItem "$cache\hosted\pub.dev" -Directory -Filter "libtorrent_flutter-*" | Select-Object -First 1
+          if (-not $base) { throw "libtorrent_flutter not found in pub cache ($cache)" }
+          $ver  = $base.Name -replace 'libtorrent_flutter-',''
+          $dest = Join-Path $base.FullName "prebuilt\windows"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $url = "https://github.com/ayman708-UX/libtorrent_flutter/releases/download/v$ver/windows-native-lib-x64.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "ltf-win-x64.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dest -Force
+          Get-ChildItem -Recurse $dest | Select-Object -ExpandProperty FullName
       - name: Build Windows
         run: flutter build windows --release --build-name=$env:VERSION --build-number=$env:BUILD_NUMBER
       - name: Package bundle
@@ -201,6 +244,10 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
       - run: flutter --version
+      - name: Generate secrets.dart
+        run: .github/scripts/gen-secrets.sh
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: flutter config --enable-macos-desktop
       - run: flutter pub get
       - name: Build macOS
@@ -218,10 +265,13 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # iOS — UNSIGNED .ipa for sideloading (no Apple Developer account required).
+  # Best-effort: unsigned device builds are finicky, so a failure here does not
+  # block the release of the other platforms (see continue-on-error).
   # ---------------------------------------------------------------------------
   ios:
     needs: prepare
     runs-on: macos-latest
+    continue-on-error: true
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
@@ -232,6 +282,10 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
       - run: flutter --version
+      - name: Generate secrets.dart
+        run: .github/scripts/gen-secrets.sh
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: flutter pub get
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign --build-name="$VERSION" --build-number="$BUILD_NUMBER"
@@ -263,6 +317,10 @@ jobs:
           channel: ${{ env.FLUTTER_CHANNEL }}
           cache: true
       - run: flutter --version
+      - name: Generate secrets.dart
+        run: .github/scripts/gen-secrets.sh
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
       - run: flutter pub get
       - name: Build Web
         run: flutter build web --release --build-name="$VERSION" --build-number="$BUILD_NUMBER"
@@ -280,6 +338,9 @@ jobs:
   release:
     needs: [prepare, android, linux, windows, macos, ios, web]
     runs-on: ubuntu-latest
+    # Run as long as the version was resolved, even if some platform builds
+    # failed — we publish whatever artifacts succeeded rather than nothing.
+    if: ${{ always() && needs.prepare.result == 'success' }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -296,7 +357,7 @@ jobs:
           draft: false
           prerelease: ${{ needs.prepare.outputs.prerelease }}
           generate_release_notes: true
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
           files: dist/*
           body: |
             ## libera ${{ needs.prepare.outputs.version }}
