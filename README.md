@@ -1,5 +1,7 @@
 # Libera
 
+<img src="logo.png" width="120" alt="Libera logo"/>
+
 A cross-platform Flutter app for browsing and watching movies and TV shows. Powered by the TMDB API, with multiple streaming backends and offline download support.
 
 ## Features
