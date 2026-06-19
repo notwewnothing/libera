@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -52,6 +53,19 @@ class ContinueWatchingService extends ChangeNotifier {
   bool _loaded = false;
 
   List<ContinueWatchingEntry> get entries => List.unmodifiable(_entries);
+
+  /// Notify listeners, but if we're mid-frame (e.g. called from a widget's
+  /// `dispose()` while the tree is being rebuilt) defer to after the frame so
+  /// listening `ListenableBuilder`s aren't asked to rebuild on a locked tree.
+  void _notifySafely() {
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      notifyListeners();
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());
+    }
+  }
 
   Future<void> init() async {
     if (_loaded) return;
@@ -132,13 +146,13 @@ class ContinueWatchingService extends ChangeNotifier {
     if (_entries.length > _maxEntries) {
       _entries = _entries.sublist(0, _maxEntries);
     }
-    notifyListeners();
+    _notifySafely();
     await _persist();
   }
 
   Future<void> remove(int id, {required bool isMovie}) async {
     _entries.removeWhere((e) => e.card.id == id && e.card.isMovie == isMovie);
-    notifyListeners();
+    _notifySafely();
     await _persist();
   }
 

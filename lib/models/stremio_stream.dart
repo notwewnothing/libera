@@ -83,10 +83,17 @@ class StremioStream {
     return m == null ? null : '${m.group(1)} ${m.group(2)!.toUpperCase()}';
   }
 
-  /// Approximate seeder count parsed from common "👤 123" / "Seeders: 123" forms.
+  /// Approximate seeder count parsed from common "👤 1,234" / "Seeders: 123" forms.
   int get seeders {
-    final m = RegExp(r'(?:👤|seeders?\D{0,3})\s*(\d+)', caseSensitive: false)
+    final m = RegExp(r'(?:👤|seeders?\D{0,3})\s*([\d,]+)', caseSensitive: false)
         .firstMatch('$name $description');
-    return m == null ? 0 : int.tryParse(m.group(1)!) ?? 0;
+    return m == null ? 0 : int.tryParse(m.group(1)!.replaceAll(',', '')) ?? 0;
+  }
+
+  /// Approximate peer/leecher count parsed from "👥 1,234" / "Peers: 123" / "Leechers: 123" forms.
+  int get peers {
+    final m = RegExp(r'(?:👥|peers?\D{0,3}|leechers?\D{0,3})\s*([\d,]+)', caseSensitive: false)
+        .firstMatch('$name $description');
+    return m == null ? 0 : int.tryParse(m.group(1)!.replaceAll(',', '')) ?? 0;
   }
 }

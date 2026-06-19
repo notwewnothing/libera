@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:libera/common/provider_badge.dart';
 import 'package:libera/common/utils.dart';
 
@@ -69,7 +70,10 @@ class _PressableState extends State<Pressable> {
   bool _pressed = false;
 
   void _setPressed(bool value) {
-    if (_pressed != value) setState(() => _pressed = value);
+    if (_pressed != value) {
+      if (value) HapticFeedback.lightImpact();
+      setState(() => _pressed = value);
+    }
   }
 
   @override

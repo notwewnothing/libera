@@ -30,21 +30,20 @@ class DetailCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(25),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.3),
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            padding: EdgeInsets.zero,
-            icon: Icon(icon, color: Colors.white, size: iconSize),
-            onPressed: onPressed,
+    return Pressable(
+      onTap: onPressed,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(25),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.3),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: iconSize),
           ),
         ),
       ),
@@ -185,6 +184,32 @@ class BlurPill extends StatelessWidget {
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: children),
         ),
+      ),
+    );
+  }
+}
+
+class PillButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final Color? color;
+
+  const PillButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onPressed,
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        color: Colors.transparent,
+        child: Icon(icon, color: color ?? Colors.white, size: 22),
       ),
     );
   }
@@ -354,24 +379,28 @@ class _ExpandableOverviewState extends State<ExpandableOverview> {
         ),
         if (showMore) ...[
           const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () => setState(() => _expanded = true),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade800.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Text(
-                "MORE",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
+          Row(
+            children: [
+              Pressable(
+                onTap: () => setState(() => _expanded = true),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade800.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Text(
+                    "MORE",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ],
       ],
@@ -595,7 +624,6 @@ class SeasonEpisodesSection extends StatelessWidget {
   final DownloadEntry? Function(Episode)? downloadStateOf;
   final ValueChanged<Episode>? onDownloadEpisode;
   final ValueChanged<Episode>? onRemoveDownload;
-  final ValueChanged<Episode>? onTorrentEpisode;
   final VoidCallback? onOpenDownloadMenu;
 
   const SeasonEpisodesSection({
@@ -611,7 +639,6 @@ class SeasonEpisodesSection extends StatelessWidget {
     this.downloadStateOf,
     this.onDownloadEpisode,
     this.onRemoveDownload,
-    this.onTorrentEpisode,
     this.onOpenDownloadMenu,
   });
 
@@ -939,20 +966,6 @@ class SeasonEpisodesSection extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 12),
-                                  if (onTorrentEpisode != null) ...[
-                                    GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () => onTorrentEpisode!(e),
-                                      child: Icon(
-                                        Icons.bolt_rounded,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.55,
-                                        ),
-                                        size: 22,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                  ],
                                   Builder(
                                     builder: (btnContext) => GestureDetector(
                                       behavior: HitTestBehavior.opaque,
@@ -1015,6 +1028,8 @@ Future<void> showDownloadSheet(
   required int currentSeason,
   required List<Episode> currentEpisodes,
   required Future<List<Episode>> Function(int season) fetchSeasonEpisodes,
+  void Function(int season, int episode)? onTorrentEpisode,
+  void Function(int season)? onTorrentSeason,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -1029,6 +1044,8 @@ Future<void> showDownloadSheet(
       currentSeason: currentSeason,
       currentEpisodes: currentEpisodes,
       fetchSeasonEpisodes: fetchSeasonEpisodes,
+      onTorrentEpisode: onTorrentEpisode,
+      onTorrentSeason: onTorrentSeason,
     ),
   );
 }
@@ -1040,12 +1057,23 @@ class _DownloadSheet extends StatefulWidget {
   final List<Episode> currentEpisodes;
   final Future<List<Episode>> Function(int season) fetchSeasonEpisodes;
 
+  /// When set, the sheet is in **torrent** mode: tapping an episode opens the
+  /// torrent sources sheet for it (via this callback) instead of starting a
+  /// direct website download.
+  final void Function(int season, int episode)? onTorrentEpisode;
+
+  /// In torrent mode, the per-season button bulk-downloads the season's
+  /// episodes via torrents through this callback.
+  final void Function(int season)? onTorrentSeason;
+
   const _DownloadSheet({
     required this.show,
     required this.seasonCount,
     required this.currentSeason,
     required this.currentEpisodes,
     required this.fetchSeasonEpisodes,
+    this.onTorrentEpisode,
+    this.onTorrentSeason,
   });
 
   @override
@@ -1099,6 +1127,10 @@ class _DownloadSheetState extends State<_DownloadSheet> {
   }
 
   void _downloadEpisode(Episode e, int season) {
+    if (widget.onTorrentEpisode != null) {
+      widget.onTorrentEpisode!(season, e.episodeNumber);
+      return;
+    }
     DownloadManager.instance.downloadEpisode(
       context,
       widget.show,
@@ -1111,6 +1143,12 @@ class _DownloadSheetState extends State<_DownloadSheet> {
   }
 
   Future<void> _downloadSeason(int season) async {
+    if (widget.onTorrentSeason != null) {
+      // Make sure the episode list is loaded so the batch knows what to fetch.
+      await _ensure(season);
+      widget.onTorrentSeason!(season);
+      return;
+    }
     final eps = await _ensure(season);
     final meta = {
       for (final e in eps)
@@ -1151,9 +1189,11 @@ class _DownloadSheetState extends State<_DownloadSheet> {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
               child: Row(
                 children: [
-                  const Text(
-                    "Download",
-                    style: TextStyle(
+                  Text(
+                    widget.onTorrentEpisode != null
+                        ? "Download · Torrents"
+                        : "Download",
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
@@ -1238,6 +1278,42 @@ class _DownloadSheetState extends State<_DownloadSheet> {
   }
 
   Widget _seasonDownloadControl(int season, List<Episode>? cached) {
+    // In torrent mode the season button bulk-queues torrent downloads (no
+    // per-episode "completed" state to track here), unless no batch handler was
+    // supplied — then there's no season action.
+    if (widget.onTorrentEpisode != null) {
+      if (widget.onTorrentSeason == null) return const SizedBox.shrink();
+      if (_loading.contains(season)) {
+        return const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(downloadAccent),
+          ),
+        );
+      }
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _downloadSeason(season),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Season",
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.arrow_circle_down_outlined,
+                color: downloadAccent, size: 26),
+          ],
+        ),
+      );
+    }
     if (_loading.contains(season)) {
       return const SizedBox(
         width: 24,

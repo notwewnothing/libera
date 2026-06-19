@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/source_chooser.dart';
+import 'package:libera/services/app_settings.dart';
 import 'package:libera/common/torrent_sources_sheet.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
@@ -45,14 +47,20 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
   int? _runtime;
   int? _year;
 
-  @override
-  void initState() {
-    super.initState();
-    movieDetails = apiServices.movieDetails(widget.movieid);
+  void _fetchData() {
+    setState(() {
+      movieDetails = apiServices.movieDetails(widget.movieid);
+    });
     _fetchTrailer();
     _fetchProviders();
     _fetchCast();
     _fetchSimilar();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
   }
 
   void _fetchProviders() async {
@@ -117,6 +125,10 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
       }
       if (mounted) setState(() => _videos = sectionVideos);
 
+      // Background trailer autoplay is user-toggleable; the Trailers row above
+      // still shows regardless.
+      if (!AppSettings.instance.autoplayTrailer) return;
+
       final trailer = youtubeVideos.firstWhere(
         (v) => v.type.toLowerCase() == 'trailer',
         orElse: () => youtubeVideos.first,
@@ -177,6 +189,16 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
       _snack("Download removed");
       return;
     }
+    showSourceChooser(
+      context,
+      title: card.title,
+      forDownload: true,
+      onWebsites: () => _downloadWebsite(card),
+      onTorrents: () => _onTorrents(card),
+    );
+  }
+
+  void _downloadWebsite(MediaCardData card) {
     DownloadManager.instance.downloadMovie(
       context,
       card,
@@ -195,17 +217,20 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
+    showSnackBar(context, message);
+  }
+
+  void _onPlay(MediaCardData card) {
+    showSourceChooser(
+      context,
+      title: card.title,
+      forDownload: false,
+      onWebsites: () => _playWebsite(card),
+      onTorrents: () => _onTorrents(card),
     );
   }
 
-  void _onPlay(MediaCardData card, {MediaPlayer? player}) {
+  void _playWebsite(MediaCardData card, {MediaPlayer? player}) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -223,7 +248,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
 
   void _onPlayLongPress(MediaCardData card) async {
     final player = await showPlayerPicker(context);
-    if (player != null && mounted) _onPlay(card, player: player);
+    if (player != null && mounted) _playWebsite(card, player: player);
   }
 
   void _toggleWatched(MediaCardData card) async {
@@ -232,29 +257,13 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
       ContinueWatchingService.instance.remove(card.id, isMovie: true);
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(added ? "Marked as watched" : "Marked as unwatched"),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    showSnackBar(context, added ? "Marked as watched" : "Marked as unwatched", icon: added ? Icons.check_circle : Icons.remove_circle_outline);
   }
 
   void _toggleMyList(MediaCardData card) async {
     final added = await WatchlistService.instance.toggle(card);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          added ? "Added to your watchlist" : "Removed from your watchlist",
-        ),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    showSnackBar(context, added ? "Added to your watchlist" : "Removed from your watchlist", icon: added ? Icons.playlist_add_check : Icons.playlist_remove);
   }
 
   Widget _fadeSwitch(Widget child) {
@@ -273,8 +282,16 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SingleChildScrollView(
-        child: FutureBuilder<MovieDetails?>(
+      body: RefreshIndicator(
+        color: const Color(0xFF0A84FF),
+        backgroundColor: const Color(0xFF2C2C2E),
+        onRefresh: () async {
+          _fetchData();
+          await movieDetails;
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: FutureBuilder<MovieDetails?>(
           future: movieDetails,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -322,6 +339,17 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                             ),
                           ),
                         ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _fetchData,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text("Retry"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade800,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -386,6 +414,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -555,41 +584,20 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                     final entry = DownloadsService.instance.entry(
                       DownloadsService.movieKey(card.id),
                     );
-                    return IconButton(
-                      padding: EdgeInsets.zero,
+                    return PillButton(
                       icon: entry != null && entry.isCompleted
-                          ? const Icon(
-                              Icons.download_done_rounded,
-                              color: downloadAccent,
-                              size: 22,
-                            )
-                          : const Icon(
-                              Icons.arrow_downward_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
+                          ? Icons.download_done_rounded
+                          : Icons.arrow_downward_rounded,
+                      color: entry != null && entry.isCompleted
+                          ? downloadAccent
+                          : Colors.white,
                       onPressed: () => _onDownload(card),
                     );
                   },
                 ),
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  tooltip: 'Torrent sources',
-                  icon: const Icon(
-                    Icons.bolt_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  onPressed: () => _onTorrents(card),
-                ),
                 if (_isVideoReady)
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: Icon(
-                      isMuted ? Icons.volume_off : Icons.volume_up,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+                  PillButton(
+                    icon: isMuted ? Icons.volume_off : Icons.volume_up,
                     onPressed: () {
                       setState(() {
                         isMuted = !isMuted;

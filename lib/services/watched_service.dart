@@ -59,6 +59,14 @@ class WatchedService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Wipe all watched history (movies + shows).
+  Future<void> clearAll() async {
+    _movies = [];
+    _shows = [];
+    notifyListeners();
+    await _persist();
+  }
+
   bool isMovieWatched(int id) => _movies.any((e) => e.id == id);
 
   Future<bool> toggleMovie(MediaCardData card) async {

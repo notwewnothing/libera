@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/services/app_settings.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:media_kit/media_kit.dart';
@@ -42,9 +44,17 @@ class OfflinePlayerScreen extends StatefulWidget {
 }
 
 class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
-  late final Player _player = Player();
+  // A larger demuxer cache (vs the 32 MB default) lets mpv read further ahead
+  // and keep filling the buffer even while paused — like Stremio, the stream
+  // keeps downloading when you pause. For torrents this also keeps pulling
+  // pieces from the libtorrent engine into cache.
+  late final Player _player = Player(
+    configuration: const PlayerConfiguration(bufferSize: 64 * 1024 * 1024),
+  );
   late final VideoController _controller = VideoController(_player);
   final List<StreamSubscription> _subs = [];
+
+  bool get _isStream => widget.mediaUrl != null;
 
   double _position = 0;
   double _duration = 0;
@@ -59,6 +69,17 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Auto-fullscreen: landscape + immersive for the player's whole lifetime.
+    // We manage this ourselves (instead of media_kit's fullscreen route) so the
+    // back button always exits the player in a single tap, never to a half-way
+    // windowed state.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     _startAt = _resumeFrom();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -95,11 +116,29 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
 
     final source = widget.mediaUrl ?? Uri.file(widget.filePath!).toString();
     _player.open(Media(source));
+    final speed = AppSettings.instance.defaultPlaybackSpeed;
+    if (speed != 1.0) _player.setRate(speed);
+    if (_isStream) _tuneStreamCache();
+  }
+
+  /// For network/torrent streams, tell mpv to keep a large look-ahead cache and
+  /// keep filling it (even while paused) so the stream downloads ahead like
+  /// Stremio. Best-effort: silently ignored on platforms without libmpv.
+  Future<void> _tuneStreamCache() async {
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return;
+    try {
+      await platform.setProperty('cache', 'yes');
+      await platform.setProperty('cache-secs', '3600');
+      await platform.setProperty('cache-pause', 'no');
+    } catch (_) {
+      // Property not supported on this build — buffering still works.
+    }
   }
 
   double _resumeFrom() {
     final card = _card;
-    if (card == null) return 0;
+    if (card == null || !AppSettings.instance.resumePlayback) return 0;
     return ContinueWatchingService.instance.resumePosition(
       card.id,
       isMovie: card.isMovie,
@@ -138,6 +177,12 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
     }
   }
 
+  int get _skipSeconds => AppSettings.instance.skipSeconds;
+  IconData get _skipBackIcon =>
+      _skipSeconds >= 30 ? Icons.replay_30 : Icons.replay_10;
+  IconData get _skipFwdIcon =>
+      _skipSeconds >= 30 ? Icons.forward_30 : Icons.forward_10;
+
   Future<void> _skip(int seconds) async {
     final target = _player.state.position + Duration(seconds: seconds);
     final dur = _player.state.duration;
@@ -150,6 +195,9 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
   @override
   void dispose() {
     if (!_ended) _saveProgress();
+    // Restore portrait/normal UI on the way out.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     for (final s in _subs) {
       s.cancel();
     }
@@ -159,14 +207,13 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = _controlsTheme(context, fullscreen: false);
-    final fsTheme = _controlsTheme(context, fullscreen: true);
+    final theme = _controlsTheme(context);
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: MaterialVideoControlsTheme(
         normal: theme,
-        fullscreen: fsTheme,
+        fullscreen: theme,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -174,6 +221,7 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
               controller: _controller,
               controls: MaterialVideoControls,
               fit: BoxFit.contain,
+              subtitleViewConfiguration: _subtitleConfig(),
             ),
             if (_buffering)
               const IgnorePointer(
@@ -190,10 +238,35 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
     );
   }
 
-  MaterialVideoControlsThemeData _controlsTheme(
-    BuildContext context, {
-    required bool fullscreen,
-  }) {
+  /// Stylised subtitles — white text with a crisp black outline + soft drop
+  /// shadow (Stremio-style) so they read on any background. The dim box is now
+  /// optional (off by default) rather than the only style.
+  SubtitleViewConfiguration _subtitleConfig() {
+    final scale = AppSettings.instance.subtitleScale;
+    final withBox = AppSettings.instance.subtitleBackground;
+    const outline = [
+      Shadow(offset: Offset(1.2, 1.2), blurRadius: 2.5, color: Colors.black),
+      Shadow(offset: Offset(-1.2, 1.2), blurRadius: 2.5, color: Colors.black),
+      Shadow(offset: Offset(1.2, -1.2), blurRadius: 2.5, color: Colors.black),
+      Shadow(offset: Offset(-1.2, -1.2), blurRadius: 2.5, color: Colors.black),
+      Shadow(blurRadius: 7, color: Colors.black87),
+    ];
+    return SubtitleViewConfiguration(
+      style: TextStyle(
+        fontSize: 32.0 * scale,
+        height: 1.3,
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.2,
+        backgroundColor:
+            withBox ? const Color(0x99000000) : const Color(0x00000000),
+        shadows: outline,
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+    );
+  }
+
+  MaterialVideoControlsThemeData _controlsTheme(BuildContext context) {
     return MaterialVideoControlsThemeData(
       seekBarThumbColor: _accent,
       seekBarPositionColor: _accent,
@@ -202,16 +275,16 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
       volumeGesture: true,
       brightnessGesture: true,
       buttonBarButtonColor: Colors.white,
+      // Lift the seek bar / bottom button row off the very bottom edge.
+      seekBarMargin: const EdgeInsets.only(left: 20, right: 20, bottom: 8),
+      bottomButtonBarMargin:
+          const EdgeInsets.only(left: 20, right: 20, bottom: 22),
       topButtonBar: [
         MaterialCustomButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            if (fullscreen) {
-              exitFullscreen(context);
-            } else {
-              Navigator.maybePop(context);
-            }
-          },
+          // Always exit the player in one tap — we own the fullscreen state,
+          // so there is no half-way windowed mode to fall back to.
+          onPressed: () => Navigator.maybePop(context),
         ),
         Expanded(
           child: Text(
@@ -241,24 +314,23 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
       primaryButtonBar: [
         const Spacer(),
         MaterialCustomButton(
-          icon: const Icon(Icons.replay_10, color: Colors.white),
+          icon: Icon(_skipBackIcon, color: Colors.white),
           iconSize: 32,
-          onPressed: () => _skip(-10),
+          onPressed: () => _skip(-_skipSeconds),
         ),
         const SizedBox(width: 8),
         const MaterialPlayOrPauseButton(iconSize: 52),
         const SizedBox(width: 8),
         MaterialCustomButton(
-          icon: const Icon(Icons.forward_10, color: Colors.white),
+          icon: Icon(_skipFwdIcon, color: Colors.white),
           iconSize: 32,
-          onPressed: () => _skip(10),
+          onPressed: () => _skip(_skipSeconds),
         ),
         const Spacer(),
       ],
       bottomButtonBar: const [
         MaterialPositionIndicator(),
         Spacer(),
-        MaterialFullscreenButton(),
       ],
     );
   }

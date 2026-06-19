@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:libera/common/download_widgets.dart';
+import 'package:libera/common/torrent_playback.dart';
 import 'package:libera/screens/offline_player_screen.dart';
 import 'package:libera/services/downloads_service.dart';
+import 'package:libera/services/torrent/torrent_downloads_service.dart';
+
+const _accent = Color(0xFF0A84FF);
 
 /// Open a completed download in the offline player.
 void playDownload(BuildContext context, DownloadEntry entry) {
@@ -70,24 +74,44 @@ class DownloadsScreen extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_link_rounded, color: Colors.white),
+            tooltip: "Stream a magnet link",
+            onPressed: () => showMagnetStreamDialog(context),
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
         child: ListenableBuilder(
-          listenable: DownloadsService.instance,
+          listenable: Listenable.merge([
+            DownloadsService.instance,
+            TorrentDownloadsService.instance,
+          ]),
           builder: (context, _) {
             final service = DownloadsService.instance;
             final groups = service.library;
+            final torrents = TorrentDownloadsService.instance.all;
             final hasActive = service.downloadingCount > 0;
 
-            if (groups.isEmpty) return const _EmptyDownloads();
+            if (groups.isEmpty && torrents.isEmpty) {
+              return const _EmptyDownloads();
+            }
 
             return ListView(
               padding: const EdgeInsets.only(top: 6, bottom: 24),
               children: [
-                if (hasActive)
-                  _DownloadingTile(count: service.downloadingCount),
-                for (final group in groups) _libraryRow(context, group),
+                if (torrents.isNotEmpty) ...[
+                  const _SectionLabel("Torrents"),
+                  for (final t in torrents) _TorrentRow(download: t),
+                ],
+                if (groups.isNotEmpty || hasActive) ...[
+                  if (torrents.isNotEmpty) const _SectionLabel("Files"),
+                  if (hasActive)
+                    _DownloadingTile(count: service.downloadingCount),
+                  for (final group in groups) _libraryRow(context, group),
+                ],
               ],
             );
           },
@@ -159,6 +183,91 @@ class DownloadsScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A small section header used to separate Torrents from file downloads.
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1,
+          ),
+        ),
+      );
+}
+
+/// A torrent download row: live progress, tap to stream, delete to remove.
+class _TorrentRow extends StatelessWidget {
+  final TorrentDownload download;
+  const _TorrentRow({required this.download});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = download;
+    final pct =
+        (d.progress * 100).clamp(0, 100).toStringAsFixed(d.done ? 0 : 1);
+    final sub =
+        d.done ? "Completed" : "$pct%  ·  ${d.speedLabel}  ·  ${d.peers} peers";
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      onTap: () => streamAndPlay(
+        context,
+        magnet: d.magnet,
+        title: d.title,
+        card: d.card,
+        season: d.season,
+        episode: d.episode,
+      ),
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: _accent.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(Icons.bolt_rounded, color: _accent),
+      ),
+      title: Text(d.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontSize: 14)),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: d.progress > 0 ? d.progress : null,
+                minHeight: 4,
+                backgroundColor: Colors.white12,
+                valueColor: const AlwaysStoppedAnimation(_accent),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(sub,
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+          ],
+        ),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.delete_outline, color: Colors.white54),
+        onPressed: () =>
+            TorrentDownloadsService.instance.remove(d.torrentId),
       ),
     );
   }

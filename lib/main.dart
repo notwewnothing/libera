@@ -2,10 +2,13 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_foreground_task/models/foreground_task_event_action.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:libera/model/tv_details.dart';
 import 'package:libera/screens/intro.dart';
+import 'package:libera/services/app_settings.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/download_notification_service.dart';
 import 'package:libera/services/download_source_service.dart';
@@ -14,11 +17,13 @@ import 'package:libera/services/stremio/stremio_addons_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
   await Future.wait([
+    AppSettings.instance.init(),
     WatchlistService.instance.init(),
     WatchedService.instance.init(),
     ContinueWatchingService.instance.init(),

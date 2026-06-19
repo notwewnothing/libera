@@ -3,6 +3,8 @@ import 'package:libera/common/adapters.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/navigation.dart';
 import 'package:libera/common/provider_badge.dart';
+import 'package:libera/common/source_chooser.dart';
+import 'package:libera/common/torrent_sources_sheet.dart';
 import 'package:libera/screens/player_screen.dart';
 import 'package:libera/screens/top10_screen.dart';
 import 'package:libera/services/api_service.dart';
@@ -300,6 +302,19 @@ class _ContinueCard extends StatelessWidget {
 
   void _resume(BuildContext context) {
     final card = entry.card;
+    final s = entry.season ?? 1;
+    final ep = entry.episode ?? 1;
+    showSourceChooser(
+      context,
+      title: card.isMovie ? card.title : "${card.title} · S$s E$ep",
+      forDownload: false,
+      onWebsites: () => _resumeWebsite(context),
+      onTorrents: () => _resumeTorrents(context),
+    );
+  }
+
+  void _resumeWebsite(BuildContext context) {
+    final card = entry.card;
     final startAt = ContinueWatchingService.instance.resumePosition(
       card.id,
       isMovie: card.isMovie,
@@ -321,6 +336,18 @@ class _ContinueCard extends StatelessWidget {
                 startAt: startAt,
               ),
       ),
+    );
+  }
+
+  void _resumeTorrents(BuildContext context) {
+    final card = entry.card;
+    showTorrentSources(
+      context,
+      card: card,
+      tmdbId: card.id,
+      isMovie: card.isMovie,
+      season: card.isMovie ? null : (entry.season ?? 1),
+      episode: card.isMovie ? null : (entry.episode ?? 1),
     );
   }
 

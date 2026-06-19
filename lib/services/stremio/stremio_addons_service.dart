@@ -146,11 +146,6 @@ class StremioAddonsService extends ChangeNotifier {
         debugPrint('[StremioAddons] getStreams(${addon.name}) failed: $e');
       }
     }));
-    results.sort((a, b) {
-      final q = _qualityScore(b.qualityLabel).compareTo(_qualityScore(a.qualityLabel));
-      if (q != 0) return q;
-      return b.seeders.compareTo(a.seeders);
-    });
     return results;
   }
 
@@ -169,18 +164,4 @@ class StremioAddonsService extends ChangeNotifier {
   static String _idFor(String baseUrl) =>
       baseUrl.hashCode.toRadixString(16);
 
-  static int _qualityScore(String? q) {
-    switch (q) {
-      case '2160p':
-        return 4;
-      case '1080p':
-        return 3;
-      case '720p':
-        return 2;
-      case '480p':
-        return 1;
-      default:
-        return 0;
-    }
-  }
 }

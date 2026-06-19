@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/source_chooser.dart';
 import 'package:libera/common/torrent_sources_sheet.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
@@ -59,15 +60,22 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
   bool _showVideo = false;
   bool isMuted = true;
 
-  @override
-  void initState() {
-    super.initState();
-    tvDetails = apiServices.tvDetails(widget.tvid);
+  void _fetchData() {
+    setState(() {
+      tvDetails = apiServices.tvDetails(widget.tvid);
+      _episodesLoading = true;
+    });
     _fetchTrailer();
     _fetchProviders();
     _fetchCast();
     _fetchSimilar();
     _fetchEpisodes(_selectedSeason);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
   }
 
   void _fetchEpisodes(int season) async {
@@ -301,15 +309,45 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
-  void _onTorrentsEpisode(MediaCardData card, Episode e) {
+  void _torrentsForEpisode(MediaCardData card, int episode, {int? season}) {
+    final s = season ?? _selectedSeason;
     showTorrentSources(
       context,
       card: card,
       tmdbId: widget.tvid,
       isMovie: false,
-      season: _selectedSeason,
-      episode: e.episodeNumber,
+      season: s,
+      episode: episode,
+      title: "${card.title} · S$s E$episode",
+    );
+  }
+
+  /// Play an episode: ask Websites (embed players) vs Torrents (stream).
+  void _choosePlay(
+    MediaCardData card,
+    String showName,
+    int episode,
+    String? episodeName, {
+    int? season,
+  }) {
+    final s = season ?? _selectedSeason;
+    showSourceChooser(
+      context,
+      title: "$showName · S$s E$episode",
+      forDownload: false,
+      onWebsites: () => _play(card, showName, episode, episodeName, season: s),
+      onTorrents: () => _torrentsForEpisode(card, episode, season: s),
+    );
+  }
+
+  /// Download an episode: ask Websites (DDL) vs Torrents.
+  void _chooseDownload(MediaCardData card, Episode e) {
+    showSourceChooser(
+      context,
       title: "${card.title} · S$_selectedSeason E${e.episodeNumber}",
+      forDownload: true,
+      onWebsites: () => _downloadEpisode(card, e),
+      onTorrents: () => _torrentsForEpisode(card, e.episodeNumber),
     );
   }
 
@@ -323,7 +361,19 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
     );
   }
 
+  /// Top download button: ask Websites (DDL) vs Torrents, then open the
+  /// download sheet in the matching mode.
   void _openDownloadSheet(MediaCardData card) {
+    showSourceChooser(
+      context,
+      title: card.title,
+      forDownload: true,
+      onWebsites: () => _showDownloadSheet(card),
+      onTorrents: () => _showDownloadSheet(card, torrents: true),
+    );
+  }
+
+  void _showDownloadSheet(MediaCardData card, {bool torrents = false}) {
     showDownloadSheet(
       context,
       show: card,
@@ -336,6 +386,26 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
             season,
           ))?.episodes ??
           [],
+      onTorrentEpisode: torrents
+          ? (season, episode) =>
+              _torrentsForEpisode(card, episode, season: season)
+          : null,
+      onTorrentSeason: torrents ? (season) => _torrentSeason(card, season) : null,
+    );
+  }
+
+  /// Bulk-download a whole season via torrents (best source per episode).
+  Future<void> _torrentSeason(MediaCardData card, int season) async {
+    final details = await apiServices.fetchSeasonDetails(widget.tvid, season);
+    final episodes =
+        (details?.episodes ?? []).map((e) => e.episodeNumber).toList();
+    if (!mounted) return;
+    await downloadSeasonTorrents(
+      context,
+      card: card,
+      tmdbId: widget.tvid,
+      season: season,
+      episodes: episodes,
     );
   }
 
@@ -360,16 +430,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
   void _toggleMyList(MediaCardData card) async {
     final added = await WatchlistService.instance.toggle(card);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          added ? "Added to your watchlist" : "Removed from your watchlist",
-        ),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    showSnackBar(context, added ? "Added to your watchlist" : "Removed from your watchlist", icon: added ? Icons.playlist_add_check : Icons.playlist_remove);
   }
 
   Widget _fadeSwitch(Widget child) {
@@ -388,8 +449,16 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SingleChildScrollView(
-        child: FutureBuilder<TvDetails?>(
+      body: RefreshIndicator(
+        color: const Color(0xFF0A84FF),
+        backgroundColor: const Color(0xFF2C2C2E),
+        onRefresh: () async {
+          _fetchData();
+          await tvDetails;
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: FutureBuilder<TvDetails?>(
           future: tvDetails,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -437,6 +506,17 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                             ),
                           ),
                         ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _fetchData,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text("Retry"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade800,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -475,7 +555,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                     title: show.name,
                     metaLine: metaLine,
                     card: card,
-                    onPlay: () => _play(
+                    onPlay: () => _choosePlay(
                       card,
                       show.name,
                       _episodes.isNotEmpty ? _episodes.first.episodeNumber : 1,
@@ -512,7 +592,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                       loading: _episodesLoading,
                       onSeasonChanged: _onSeasonChanged,
                       onPlayEpisode: (e) =>
-                          _play(card, show.name, e.episodeNumber, e.name),
+                          _choosePlay(card, show.name, e.episodeNumber, e.name),
                       isEpisodeWatched: (e) =>
                           WatchedService.instance.isEpisodeWatched(
                             card.id,
@@ -521,9 +601,8 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                           ),
                       onToggleWatched: (e) => _toggleEpisodeWatched(card, e),
                       downloadStateOf: _downloadEntryFor,
-                      onDownloadEpisode: (e) => _downloadEpisode(card, e),
+                      onDownloadEpisode: (e) => _chooseDownload(card, e),
                       onRemoveDownload: _removeEpisodeDownload,
-                      onTorrentEpisode: (e) => _onTorrentsEpisode(card, e),
                       onOpenDownloadMenu: () => _openDownloadSheet(card),
                     ),
                   ),
@@ -536,6 +615,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -710,23 +790,13 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
             top: topPad + 8,
             child: BlurPill(
               children: [
-                IconButton(
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(
-                    Icons.arrow_downward_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
+                PillButton(
+                  icon: Icons.arrow_downward_rounded,
                   onPressed: () => _openDownloadSheet(card),
                 ),
                 if (_isVideoReady)
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: Icon(
-                      isMuted ? Icons.volume_off : Icons.volume_up,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+                  PillButton(
+                    icon: isMuted ? Icons.volume_off : Icons.volume_up,
                     onPressed: () {
                       setState(() {
                         isMuted = !isMuted;

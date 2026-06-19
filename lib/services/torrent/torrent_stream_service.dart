@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:libtorrent_flutter/libtorrent_flutter.dart';
 
+import 'package:libera/services/app_settings.dart';
 import 'torrent_filter.dart';
 
 /// Rich torrent statistics snapshot for the UI.
@@ -35,6 +36,22 @@ class TorrentStats {
   String get cacheLabel => '${cachePercent.toStringAsFixed(1)}%';
 }
 
+/// Result of opening a torrent stream: a playable local HTTP [url] plus the
+/// native [streamId], which callers pass to [TorrentStreamService.bufferProgress]
+/// to watch buffering before they hand the url to the player.
+class TorrentStreamHandle {
+  final String url;
+  final int streamId;
+  final String? hash;
+  final StreamInfo initial;
+  const TorrentStreamHandle({
+    required this.url,
+    required this.streamId,
+    required this.hash,
+    required this.initial,
+  });
+}
+
 /// Engine lifecycle states.
 enum EngineState { stopped, starting, ready, error }
 
@@ -55,10 +72,10 @@ class TorrentStreamService {
   factory TorrentStreamService() => _instance;
   static TorrentStreamService get instance => _instance;
 
-  // Inlined defaults (were SettingsService in PlayTorrioV2).
-  static const bool _saveToRam = true;
-  static const int _ramCacheMb = 200;
-  int _connectionsLimit = 200;
+  // User-configurable via AppSettings (Stremio-style streaming server prefs).
+  bool get _saveToRam => AppSettings.instance.torrentCacheToRam;
+  int get _ramCacheMb => AppSettings.instance.torrentRamCacheMb;
+  int get _connectionsLimit => AppSettings.instance.torrentMaxConnections;
 
   EngineState _state = EngineState.stopped;
   EngineState get state => _state;
@@ -121,9 +138,9 @@ class TorrentStreamService {
     }
   }
 
-  /// Live-update the per-torrent peer connection limit.
-  Future<void> applyConnectionsLimit(int limit) async {
-    _connectionsLimit = limit.clamp(5, 200);
+  /// Live-apply the current connection limit from [AppSettings] to a running
+  /// session (call after the user changes it in settings).
+  Future<void> applyConnectionsLimit() async {
     if (_state != EngineState.ready) return;
     try {
       final engine = LibtorrentFlutter.instance;
@@ -143,8 +160,10 @@ class TorrentStreamService {
   // ── Stream a torrent — main entry point ────────────────────────────────────
 
   /// Adds [magnetLink], waits for metadata, picks the file (season/episode aware,
-  /// or [fileIdx]), starts the local HTTP stream and returns its URL.
-  Future<String?> streamTorrent(
+  /// or [fileIdx]), starts the local HTTP stream, primes the head+tail cache and
+  /// returns a [TorrentStreamHandle]. Callers gate playback on [bufferProgress]
+  /// so the player only opens once enough is buffered (Stremio-style fast start).
+  Future<TorrentStreamHandle?> openStream(
     String magnetLink, {
     int? season,
     int? episode,
@@ -204,12 +223,46 @@ class TorrentStreamService {
       );
       if (hash != null) _activeStreams[hash] = streamInfo.id;
       _log('Stream started: ${streamInfo.url}');
-      return streamInfo.url;
+
+      // Prime head + tail so the player can start instantly (TorrServer-style).
+      try {
+        LibtorrentFlutter.instance.preloadStream(streamInfo.id);
+        _log('Preloading head+tail for stream ${streamInfo.id}');
+      } catch (e) {
+        _log('preloadStream failed (non-fatal): $e');
+      }
+
+      return TorrentStreamHandle(
+        url: streamInfo.url,
+        streamId: streamInfo.id,
+        hash: hash,
+        initial: streamInfo,
+      );
     } catch (e) {
-      _log('streamTorrent error: $e');
+      _log('openStream error: $e');
       return null;
     }
   }
+
+  /// Backward-compatible helper: just the playable URL, no buffer gating.
+  Future<String?> streamTorrent(
+    String magnetLink, {
+    int? season,
+    int? episode,
+    int? fileIdx,
+  }) async {
+    final handle = await openStream(magnetLink,
+        season: season, episode: episode, fileIdx: fileIdx);
+    return handle?.url;
+  }
+
+  /// Live buffering telemetry for an active [streamId] — buffer %, download
+  /// rate, peer count and ready/buffering state. Drives the loading screen.
+  Stream<StreamInfo> bufferProgress(int streamId) =>
+      LibtorrentFlutter.instance.streamUpdates
+          .map((streams) => streams[streamId])
+          .where((info) => info != null)
+          .cast<StreamInfo>();
 
   // ── Metadata polling ────────────────────────────────────────────────────────
 
@@ -255,6 +308,22 @@ class TorrentStreamService {
 
   int? _selectFile(List<FileInfo> files,
       {int? season, int? episode, int? preferredIdx}) {
+    // 1. Trust the addon-supplied file index FIRST. Stremio/AIOStreams resolve
+    //    the exact file for the requested episode and hand it over as fileIdx;
+    //    this is authoritative. Season packs frequently also bundle the movie
+    //    or specials (often the LARGEST file), so any size/name heuristic risks
+    //    grabbing "<Show> The Movie" instead of the episode — which is exactly
+    //    the bug this avoids.
+    if (preferredIdx != null) {
+      final exact =
+          files.where((f) => f.index == preferredIdx && f.isStreamable).toList();
+      if (exact.isNotEmpty) {
+        _log('Using addon fileIdx=$preferredIdx: ${exact.first.name}');
+        return exact.first.index;
+      }
+      _log('addon fileIdx=$preferredIdx not found among files; falling back');
+    }
+
     final videoFiles = files
         .where((f) => f.isStreamable && TorrentFilter.isVideoFile(f.name))
         .toList();
@@ -265,21 +334,28 @@ class TorrentStreamService {
       return streamable.first.index;
     }
 
+    // 2. Match the requested season/episode by filename (skips the movie /
+    //    specials in a pack). Only the largest match is kept (sample files etc).
     if (season != null && episode != null) {
       final matches = videoFiles
           .where((f) => TorrentFilter.isFileMatch(f.name, season, episode))
           .toList();
       if (matches.isNotEmpty) {
         matches.sort((a, b) => b.size.compareTo(a.size));
+        _log('Episode name-match S${season}E$episode: ${matches.first.name}');
         return matches.first.index;
+      }
+      // A season/episode was requested but nothing matched. If this looks like
+      // a multi-file pack, refuse to blindly grab the largest file (that's how
+      // the movie gets picked) — there's nothing sensible to return.
+      if (videoFiles.length > 1) {
+        _log('No file matched S${season}E$episode in a ${videoFiles.length}-file '
+            'pack — not falling back to largest to avoid the wrong title');
+        return null;
       }
     }
 
-    if (preferredIdx != null) {
-      final match = videoFiles.where((f) => f.index == preferredIdx).toList();
-      if (match.isNotEmpty) return match.first.index;
-    }
-
+    // 3. Single-file / movie torrent — the largest video is the right call.
     videoFiles.sort((a, b) => b.size.compareTo(a.size));
     return videoFiles.first.index;
   }

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'package:libera/services/app_settings.dart';
 import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/torrent/torrent_downloads_service.dart';
 
@@ -66,6 +67,12 @@ class DownloadNotificationService {
 
   void _onChanged() {
     if (!Platform.isAndroid) return;
+    // Respect the user's "background downloads" toggle — when off we never run
+    // the foreground service (downloads still progress while the app is open).
+    if (!AppSettings.instance.backgroundDownloads) {
+      unawaited(_stop());
+      return;
+    }
     final snap = _aggregate();
     if (snap.activeCount > 0) {
       unawaited(_runOrUpdate(snap));

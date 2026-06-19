@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/services/app_settings.dart';
 import 'package:libera/services/index_scraper.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -123,8 +124,8 @@ class DownloadsService extends ChangeNotifier {
   final List<DownloadEntry> _entries = [];
   final http.Client _client = http.Client();
 
-  // Real-download engine state.
-  int maxConcurrent = 2;
+  // Real-download engine state. Concurrency is user-configurable via AppSettings.
+  int get maxConcurrent => AppSettings.instance.maxConcurrentDownloads;
   final List<String> _queue = [];
   final Set<String> _active = {};
   final Map<String, StreamSubscription<List<int>>> _subs = {};
