@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:libera/common/adaptive_dialog.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/platform.dart';
 
 const _accent = Color(0xFF0A84FF);
 
-/// Bottom sheet that asks whether to use **website sources** or **torrents**,
-/// for either playing or downloading — the single entry point for both the Play
-/// and Download actions (replaces the separate torrent button + the silent
-/// "default player" play behaviour).
+/// Asks whether to use **website sources** or **torrents**, for either playing
+/// or downloading — the single entry point for both the Play and Download
+/// actions. Presented as a bottom sheet on phones and a centered dialog on
+/// desktop. On web (no torrent engine) it skips straight to websites.
 Future<void> showSourceChooser(
   BuildContext context, {
   required String title,
@@ -14,12 +16,13 @@ Future<void> showSourceChooser(
   required VoidCallback onWebsites,
   required VoidCallback onTorrents,
 }) {
-  return showModalBottomSheet<void>(
+  if (!supportsTorrents) {
+    onWebsites();
+    return Future<void>.value();
+  }
+  return showAdaptiveSheet<void>(
     context: context,
     backgroundColor: const Color(0xFF1C1C1E),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
     builder: (ctx) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,

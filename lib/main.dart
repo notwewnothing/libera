@@ -1,12 +1,8 @@
-import 'dart:ui';
-
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter_foreground_task/models/foreground_task_event_action.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
-import 'package:libera/model/tv_details.dart';
+import 'package:libera/common/desktop_window.dart';
+import 'package:libera/common/platform.dart';
 import 'package:libera/screens/intro.dart';
 import 'package:libera/services/app_settings.dart';
 import 'package:libera/services/continue_watching_service.dart';
@@ -17,10 +13,10 @@ import 'package:libera/services/stremio/stremio_addons_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await setupDesktopWindow();
   MediaKit.ensureInitialized();
   await Future.wait([
     AppSettings.instance.init(),
@@ -31,12 +27,25 @@ void main() async {
     DownloadSourceService.instance.init(),
     StremioAddonsService.instance.init(),
   ]);
-  DownloadNotificationService.instance.init();
+  // Android-only foreground service (keeps downloads alive). Guarded so web,
+  // where touching dart:io's Platform throws, never reaches it.
+  if (isAndroid) DownloadNotificationService.instance.init();
   runApp(const MyApp());
 }
 
 class _AppScrollBehavior extends MaterialScrollBehavior {
   const _AppScrollBehavior();
+
+  // Allow dragging scrollables with a mouse/trackpad (not just touch) so the
+  // horizontal poster rows can be panned with the pointer on desktop/web.
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.unknown,
+  };
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) =>

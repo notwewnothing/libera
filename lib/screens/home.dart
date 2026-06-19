@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:libera/common/adapters.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/navigation.dart';
+import 'package:libera/common/responsive.dart';
 import 'package:libera/common/provider_badge.dart';
 import 'package:libera/common/source_chooser.dart';
 import 'package:libera/common/torrent_sources_sheet.dart';
@@ -226,7 +227,10 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         final items = WatchlistService.instance.items;
         if (items.isEmpty) return const SizedBox.shrink();
-        final cardWidth = MediaQuery.sizeOf(context).width - 56;
+        // One card fills the phone width; on bigger screens show several.
+        final cardWidth = context.isCompact
+            ? MediaQuery.sizeOf(context).width - 56
+            : 320.0;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -263,7 +267,10 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, snapshot) {
         final items = (snapshot.data ?? []).skip(_heroCount).take(6).toList();
         if (items.isEmpty) return const SizedBox.shrink();
-        final cardWidth = MediaQuery.sizeOf(context).width - 56;
+        // One card fills the phone width; on bigger screens show several.
+        final cardWidth = context.isCompact
+            ? MediaQuery.sizeOf(context).width - 56
+            : 320.0;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -509,8 +516,13 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final topPad = MediaQuery.paddingOf(context).top;
+    // Phones use most of the viewport; on bigger screens cap it so the hero
+    // doesn't swallow the whole window.
+    final heroHeight = context.isCompact
+        ? size.height * 0.72
+        : (size.height * 0.6).clamp(420.0, 560.0);
     return SizedBox(
-      height: size.height * 0.72,
+      height: heroHeight,
       width: double.infinity,
       child: Stack(
         fit: StackFit.expand,

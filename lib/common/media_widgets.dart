@@ -54,12 +54,25 @@ class Pressable extends StatefulWidget {
   final VoidCallback? onLongPress;
   final double pressedScale;
 
+  /// Whether pointer hover lifts the child slightly (desktop affordance).
+  final bool hoverLift;
+
+  /// Shape of the keyboard-focus ring. Pass a large radius for circular buttons.
+  final BorderRadius focusBorderRadius;
+
+  /// Auto-focus this element when the surrounding scope first builds (e.g. the
+  /// primary action on a screen) so keyboard users land somewhere sensible.
+  final bool autofocus;
+
   const Pressable({
     super.key,
     required this.child,
     this.onTap,
     this.onLongPress,
     this.pressedScale = 0.96,
+    this.hoverLift = true,
+    this.focusBorderRadius = const BorderRadius.all(Radius.circular(14)),
+    this.autofocus = false,
   });
 
   @override
@@ -68,6 +81,10 @@ class Pressable extends StatefulWidget {
 
 class _PressableState extends State<Pressable> {
   bool _pressed = false;
+  bool _hovered = false;
+  bool _focused = false;
+
+  bool get _enabled => widget.onTap != null || widget.onLongPress != null;
 
   void _setPressed(bool value) {
     if (_pressed != value) {
@@ -78,7 +95,12 @@ class _PressableState extends State<Pressable> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final accent = Theme.of(context).colorScheme.primary;
+    final scale = _pressed
+        ? widget.pressedScale
+        : (_hovered && widget.hoverLift && _enabled ? 1.03 : 1.0);
+
+    Widget child = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
       onTapDown: (_) => _setPressed(true),
@@ -88,15 +110,47 @@ class _PressableState extends State<Pressable> {
       onLongPressEnd:
           widget.onLongPress != null ? (_) => _setPressed(false) : null,
       child: AnimatedScale(
-        scale: _pressed ? widget.pressedScale : 1.0,
+        scale: scale,
         duration: Duration(milliseconds: _pressed ? 90 : 220),
         curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
         child: AnimatedOpacity(
           opacity: _pressed ? 0.85 : 1.0,
           duration: const Duration(milliseconds: 120),
-          child: widget.child,
+          // Focus ring is painted over the child (no layout shift).
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            foregroundDecoration: BoxDecoration(
+              borderRadius: widget.focusBorderRadius,
+              border: Border.all(
+                color: _focused ? accent : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: widget.child,
+          ),
         ),
       ),
+    );
+
+    return FocusableActionDetector(
+      enabled: _enabled,
+      autofocus: widget.autofocus,
+      mouseCursor: _enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      onShowHoverHighlight: (v) {
+        if (_hovered != v) setState(() => _hovered = v);
+      },
+      onShowFocusHighlight: (v) {
+        if (_focused != v) setState(() => _focused = v);
+      },
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onTap?.call();
+            return null;
+          },
+        ),
+      },
+      child: child,
     );
   }
 }

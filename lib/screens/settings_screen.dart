@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:libera/common/adaptive_dialog.dart';
 import 'package:libera/screens/about_screen.dart';
 import 'package:libera/services/app_settings.dart';
 import 'package:libera/services/continue_watching_service.dart';
@@ -15,12 +16,9 @@ const _accent = Color(0xFF0A84FF);
 /// the Play button to switch player for a single playback.
 Future<MediaPlayer?> showPlayerPicker(BuildContext context) {
   final current = PlayerService.instance.current;
-  return showModalBottomSheet<MediaPlayer>(
+  return showAdaptiveSheet<MediaPlayer>(
     context: context,
     backgroundColor: const Color(0xFF1A1A1A),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
     builder: (context) {
       return SafeArea(
         child: Column(

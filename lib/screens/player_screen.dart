@@ -1,15 +1,20 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/platform.dart';
+import 'package:libera/common/web_embed.dart';
+import 'package:libera/screens/embed/inline_webview_player.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/player_service.dart';
-import 'package:libera/services/watched_service.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class PlayerScreen extends StatefulWidget {
+/// Plays a website "embed" player (Vidking, VidSrc, …) for [card].
+///
+/// The presentation adapts to the platform's [embedMode]:
+/// - mobile / macOS → inline WebView with full progress tracking;
+/// - web → the site embedded in an `<iframe>`;
+/// - Linux/other desktop → opened in the system browser (no inline WebView),
+///   where the native torrent → media_kit pipeline is the better watch path.
+class PlayerScreen extends StatelessWidget {
   final String title;
   final String embedUrl;
   final String ogUrl;
@@ -74,251 +79,164 @@ class PlayerScreen extends StatefulWidget {
   }
 
   @override
-  State<PlayerScreen> createState() => _PlayerScreenState();
+  Widget build(BuildContext context) {
+    switch (embedMode) {
+      case EmbedMode.inlineWebView:
+      case EmbedMode.inappWebView:
+        return InlineWebViewPlayer(
+          title: title,
+          embedUrl: embedUrl,
+          ogUrl: ogUrl,
+          allowedDomain: allowedDomain,
+          card: card,
+          season: season,
+          episode: episode,
+          startAt: startAt,
+        );
+      case EmbedMode.iframe:
+        return _IframePlayer(title: title, embedUrl: embedUrl, card: _record());
+      case EmbedMode.externalBrowser:
+        return _ExternalBrowserPlayer(
+          title: title,
+          embedUrl: embedUrl,
+          card: _record(),
+        );
+    }
+  }
+
+  /// Records the open in Continue Watching (no on-site progress is available in
+  /// these modes) and returns the card for convenience.
+  MediaCardData? _record() {
+    final c = card;
+    if (c != null) {
+      ContinueWatchingService.instance.record(
+        c,
+        season: c.isMovie ? null : season,
+        episode: c.isMovie ? null : episode,
+      );
+    }
+    return c;
+  }
 }
 
-class _PlayerScreenState extends State<PlayerScreen> {
-  late final WebViewController _controller;
-  bool _loading = true;
-  bool _isLandscape = false;
+/// Web: the embed site rendered in an `<iframe>` filling the screen.
+class _IframePlayer extends StatelessWidget {
+  final String title;
+  final String embedUrl;
+  final MediaCardData? card;
 
-  late String _title = widget.title;
-  late int _season = widget.season ?? 1;
-  late int _episode = widget.episode ?? 1;
-  late double _position = widget.startAt;
-  double _duration = 0;
-  DateTime _lastSave = DateTime.now();
+  const _IframePlayer({
+    required this.title,
+    required this.embedUrl,
+    required this.card,
+  });
 
-  MediaCardData? get _card => widget.card;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16),
+        ),
+      ),
+      body: buildWebIframe(embedUrl),
+    );
+  }
+}
+
+/// Desktop without an inline WebView (Linux): open the player in the browser.
+class _ExternalBrowserPlayer extends StatefulWidget {
+  final String title;
+  final String embedUrl;
+  final MediaCardData? card;
+
+  const _ExternalBrowserPlayer({
+    required this.title,
+    required this.embedUrl,
+    required this.card,
+  });
+
+  @override
+  State<_ExternalBrowserPlayer> createState() => _ExternalBrowserPlayerState();
+}
+
+class _ExternalBrowserPlayerState extends State<_ExternalBrowserPlayer> {
+  bool _opened = false;
 
   @override
   void initState() {
     super.initState();
-
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final card = _card;
-      if (card != null) {
-        ContinueWatchingService.instance.record(
-          card,
-          season: card.isMovie ? null : _season,
-          episode: card.isMovie ? null : _episode,
-        );
-      }
-    });
-
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black)
-      ..addJavaScriptChannel(
-        'LiberaProgress',
-        onMessageReceived: (message) => _onPlayerMessage(message.message),
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (url) {
-            if (url.contains('google.')) {
-              _controller.loadRequest(Uri.parse(widget.ogUrl));
-            }
-          },
-          onUrlChange: (change) => _onUrlChanged(change.url),
-          onPageFinished: (_) {
-            if (mounted) setState(() => _loading = false);
-            _hookPlayerEvents();
-          },
-          onWebResourceError: (error) {
-            debugPrint("WebView error: ${error.description}");
-          },
-          onNavigationRequest: (request) {
-            final url = request.url;
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-              return NavigationDecision.prevent;
-            }
-            if (!url.contains(widget.allowedDomain) &&
-                !url.contains('google.')) {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.ogUrl));
-
-    if (_controller.platform is AndroidWebViewController) {
-      (_controller.platform as AndroidWebViewController)
-          .setMediaPlaybackRequiresUserGesture(false);
-    }
+    // Auto-open once; the user can re-open from the button afterwards.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _open());
   }
 
-  void _hookPlayerEvents() {
-    _controller.runJavaScript('''
-      if (!window.__liberaProgressHooked) {
-        window.__liberaProgressHooked = true;
-        window.addEventListener('message', function (e) {
-          var d = e.data;
-          if (typeof d !== 'string') {
-            try { d = JSON.stringify(d); } catch (err) { return; }
-          }
-          if (window.LiberaProgress) { LiberaProgress.postMessage(d); }
-        });
-      }
-    ''');
-  }
-
-  void _onPlayerMessage(String raw) {
-    final card = _card;
-    if (card == null) return;
-
-    Map<String, dynamic>? data;
+  Future<void> _open() async {
+    setState(() => _opened = true);
     try {
-      final msg = jsonDecode(raw);
-      if (msg is Map<String, dynamic> && msg["type"] == "PLAYER_EVENT") {
-        data = (msg["data"] as Map?)?.cast<String, dynamic>();
-      }
-    } catch (_) {
-      return;
-    }
-    if (data == null) return;
-
-    if (!card.isMovie) {
-      final season = (data["season"] as num?)?.toInt() ?? _season;
-      final episode = (data["episode"] as num?)?.toInt() ?? _episode;
-      if (season != _season || episode != _episode) {
-        _handleEpisodeChange(season, episode);
-      }
-    }
-
-    _position = (data["currentTime"] as num?)?.toDouble() ?? _position;
-    _duration = (data["duration"] as num?)?.toDouble() ?? _duration;
-
-    switch (data["event"]?.toString()) {
-      case "ended":
-        _onEnded(card);
-      case "play":
-      case "pause":
-      case "seeked":
-        _saveProgress();
-      case "timeupdate":
-        if (DateTime.now().difference(_lastSave).inSeconds >= 10) {
-          _saveProgress();
-        }
-    }
-  }
-
-  void _onUrlChanged(String? url) {
-    final card = _card;
-    if (url == null || card == null || card.isMovie) return;
-    final match = RegExp(r'/embed/tv/\d+/(\d+)/(\d+)').firstMatch(url);
-    if (match == null) return;
-    final season = int.parse(match.group(1)!);
-    final episode = int.parse(match.group(2)!);
-    if (season != _season || episode != _episode) {
-      _handleEpisodeChange(season, episode);
-    }
-  }
-
-  void _handleEpisodeChange(int season, int episode) {
-    final card = _card!;
-    final forward =
-        season > _season || (season == _season && episode > _episode);
-    if (forward) {
-      WatchedService.instance.markEpisodeWatched(card, _season, _episode);
-    }
-    _season = season;
-    _episode = episode;
-    _position = 0;
-    _duration = 0;
-    _lastSave = DateTime.now();
-    if (mounted) {
-      setState(() => _title = "${card.title} · S$season E$episode");
-    }
-    ContinueWatchingService.instance.record(
-      card,
-      season: season,
-      episode: episode,
-      positionSeconds: 0,
-      durationSeconds: 0,
-    );
-  }
-
-  void _saveProgress() {
-    final card = _card;
-    if (card == null) return;
-    _lastSave = DateTime.now();
-    ContinueWatchingService.instance.record(
-      card,
-      season: card.isMovie ? null : _season,
-      episode: card.isMovie ? null : _episode,
-      positionSeconds: _position,
-      durationSeconds: _duration,
-    );
-  }
-
-  void _onEnded(MediaCardData card) {
-    if (card.isMovie) {
-      WatchedService.instance.markMovieWatched(card);
-      ContinueWatchingService.instance.remove(card.id, isMovie: true);
-    } else {
-      WatchedService.instance.markEpisodeWatched(card, _season, _episode);
-      _saveProgress();
-    }
-  }
-
-  @override
-  void dispose() {
-    if (_card != null && _position > 0) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _saveProgress());
-    }
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: SystemUiOverlay.values,
-    );
-    super.dispose();
+      await launchUrl(
+        Uri.parse(widget.embedUrl),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {/* surfaced by the still-visible button */}
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape =
-        MediaQuery.orientationOf(context) == Orientation.landscape;
-
-    if (isLandscape != _isLandscape) {
-      _isLandscape = isLandscape;
-      SystemChrome.setEnabledSystemUIMode(
-        isLandscape ? SystemUiMode.immersiveSticky : SystemUiMode.manual,
-        overlays: isLandscape ? const [] : SystemUiOverlay.values,
-      );
-    }
-
+    final accent = Theme.of(context).colorScheme.primary;
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: isLandscape
-          ? null
-          : AppBar(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              title: Text(
-                _title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 16),
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(widget.title,
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.open_in_browser, color: Colors.white54, size: 64),
+              const SizedBox(height: 18),
+              Text(
+                _opened ? "Opened in your browser" : "Opening in your browser…",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-      body: Stack(
-        children: [
-          Positioned.fill(child: WebViewWidget(controller: _controller)),
-          if (_loading)
-            const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE50914)),
-            ),
-        ],
+              const SizedBox(height: 8),
+              Text(
+                "This player runs as a website. On desktop, the in-app torrent "
+                "player usually gives a smoother experience.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.55),
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _open,
+                style: FilledButton.styleFrom(backgroundColor: accent),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text("Open again"),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

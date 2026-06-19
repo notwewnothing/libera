@@ -4,8 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:libera/common/adapters.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/navigation.dart';
+import 'package:libera/common/responsive.dart';
 import 'package:libera/screens/top10_screen.dart';
 import 'package:libera/services/api_service.dart';
+
+/// Shared focus node for the search field, so the global "/" shortcut (wired in
+/// the nav shell) can jump focus straight into search from anywhere.
+final FocusNode searchFocusNode = FocusNode(debugLabel: 'liberaSearch');
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -116,51 +121,75 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _searchBar() {
+    final accent = Theme.of(context).colorScheme.primary;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        height: 50,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(26),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search, color: Colors.white.withValues(alpha: 0.7)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _controller,
-                onChanged: _onChanged,
-                autocorrect: false,
-                textInputAction: TextInputAction.search,
-                cursorColor: Colors.blue,
-                style: const TextStyle(color: Colors.white, fontSize: 17),
-                decoration: InputDecoration(
-                  isCollapsed: true,
-                  border: InputBorder.none,
-                  hintText: "Movies, Shows, and More",
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    fontSize: 17,
+      padding: EdgeInsets.symmetric(horizontal: context.hPad),
+      // Left-align and cap the width so the bar doesn't span an ultrawide window.
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: AnimatedBuilder(
+            animation: searchFocusNode,
+            builder: (context, _) {
+              final focused = searchFocusNode.hasFocus;
+              return Container(
+                height: 52,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(
+                    color: focused ? accent : Colors.transparent,
+                    width: 1.5,
                   ),
                 ),
-              ),
-            ),
-            if (_query.isNotEmpty)
-              GestureDetector(
-                onTap: () {
-                  _controller.clear();
-                  _onChanged("");
-                },
-                child: Icon(
-                  Icons.close,
-                  color: Colors.white.withValues(alpha: 0.7),
-                  size: 20,
+                child: Row(
+                  children: [
+                    Icon(Icons.search,
+                        color: Colors.white.withValues(alpha: 0.7)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: searchFocusNode,
+                        // Land in the field on desktop/tablet where a keyboard
+                        // is expected; phones open it on tap instead.
+                        autofocus: context.isWide,
+                        onChanged: _onChanged,
+                        autocorrect: false,
+                        textInputAction: TextInputAction.search,
+                        cursorColor: Colors.blue,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 17),
+                        decoration: InputDecoration(
+                          isCollapsed: true,
+                          border: InputBorder.none,
+                          hintText: "Movies, Shows, and More",
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.5),
+                            fontSize: 17,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_query.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _controller.clear();
+                          _onChanged("");
+                        },
+                        child: Icon(
+                          Icons.close,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          size: 20,
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-          ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -178,11 +207,12 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       );
     }
+    final bottomInset = context.isCompact ? 100.0 : 28.0;
     return GridView.builder(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+      padding: EdgeInsets.fromLTRB(context.hPad, 0, context.hPad, bottomInset),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: context.posterTileExtent,
         mainAxisSpacing: 14,
         crossAxisSpacing: 14,
         childAspectRatio: 2 / 3,
@@ -202,15 +232,17 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _categoryGrid() {
-    return GridView.count(
+    final bottomInset = context.isCompact ? 100.0 : 28.0;
+    return GridView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      crossAxisCount: 3,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
-      childAspectRatio: 0.62,
-      children:
-          _categories.map((c) => _CategoryTile(category: c)).toList(),
+      padding: EdgeInsets.fromLTRB(context.hPad, 4, context.hPad, bottomInset),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: context.posterTileExtent + 40,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
+        childAspectRatio: 0.62,
+      ),
+      children: _categories.map((c) => _CategoryTile(category: c)).toList(),
     );
   }
 }

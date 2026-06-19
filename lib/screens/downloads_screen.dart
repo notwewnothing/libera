@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:libera/common/adaptive_dialog.dart';
 import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/torrent_playback.dart';
 import 'package:libera/screens/offline_player_screen.dart';
@@ -151,12 +152,9 @@ class DownloadsScreen extends StatelessWidget {
   }
 
   void _movieMenu(BuildContext context, DownloadEntry entry) {
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -632,12 +630,9 @@ class _DownloadShowScreenState extends State<DownloadShowScreen> {
   }
 
   void _episodeMenu(BuildContext context, DownloadEntry entry) {
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -55,6 +55,8 @@ dependencies:
   # Torrent streaming/downloading engine (native FFI; same plugin PlayTorrioV2 uses).
   libtorrent_flutter: 1.8.5
   flutter_foreground_task: ^9.2.2
+  url_launcher: ^6.3.2
+  window_manager: ^0.5.1
 
 
  

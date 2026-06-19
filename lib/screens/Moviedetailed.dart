@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/responsive.dart';
 import 'package:libera/common/source_chooser.dart';
 import 'package:libera/services/app_settings.dart';
 import 'package:libera/common/torrent_sources_sheet.dart';
@@ -278,7 +279,10 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final headerHeight = size.height * 0.62;
+    // Phones use 62% of the viewport for the backdrop; cap it on big screens.
+    final headerHeight = context.isCompact
+        ? size.height * 0.62
+        : (size.height * 0.62).clamp(360.0, 560.0);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -374,7 +378,9 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
             );
 
             return _fadeSwitch(
-              Column(
+              MaxWidth(
+                maxWidth: 1100,
+                child: Column(
                 key: const ValueKey("content"),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -410,6 +416,7 @@ class _MovieDetailedScreenState extends State<MovieDetailedScreen> {
                   if (_similar.isNotEmpty) _SimilarSection(items: _similar),
                   const SizedBox(height: 30),
                 ],
+                ),
               ),
             );
           },

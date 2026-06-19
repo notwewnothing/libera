@@ -1,17 +1,14 @@
-import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/responsive.dart';
 import 'package:libera/common/source_chooser.dart';
 import 'package:libera/common/torrent_sources_sheet.dart';
 import 'package:libera/common/utils.dart';
 import 'package:libera/model/credits.dart';
-import 'package:libera/model/drama.dart';
 import 'package:libera/model/media_list.dart';
 import 'package:libera/model/movie_video.dart';
 import 'package:libera/model/season_details.dart';
@@ -27,11 +24,7 @@ import 'package:libera/services/download_manager.dart';
 import 'package:libera/services/player_service.dart';
 import 'package:libera/services/watched_service.dart';
 import 'package:libera/services/watchlist_service.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video_controls/media_kit_video_controls.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
-import 'package:youtube_explode_dart/js_challenge.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 class TvShowDetailedScreen extends StatefulWidget {
@@ -445,7 +438,9 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final headerHeight = size.height * 0.62;
+    final headerHeight = context.isCompact
+        ? size.height * 0.62
+        : (size.height * 0.62).clamp(360.0, 560.0);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -544,7 +539,9 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
             );
 
             return _fadeSwitch(
-              Column(
+              MaxWidth(
+                maxWidth: 1100,
+                child: Column(
                 key: const ValueKey("content"),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -611,6 +608,7 @@ class _TvShowDetailedScreenState extends State<TvShowDetailedScreen> {
                   if (_similar.isNotEmpty) _SimilarSection(items: _similar),
                   const SizedBox(height: 30),
                 ],
+                ),
               ),
             );
           },

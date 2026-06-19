@@ -1,7 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:libera/common/platform.dart';
+import 'package:libera/common/responsive.dart';
 import 'package:libera/screens/downloads_screen.dart';
 import 'package:libera/screens/home.dart';
 import 'package:libera/screens/search.dart';
@@ -32,55 +35,99 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
     (icon: Iconsax.video_square, label: "Library"),
   ];
 
+  void _select(int i) => setState(() => _index = i);
+
+  /// Global "/" jumps to Search and focuses the field (when not already typing).
+  void _focusSearch() {
+    setState(() => _index = 1);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => searchFocusNode.requestFocus(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final wide = context.isWide;
+    final body = _FadeIndexedStack(
+      index: _index,
+      children: const [HomeScreen(), SearchScreen(), _LibraryScreen()],
+    );
+
+    final scaffold = Scaffold(
       backgroundColor: Colors.black,
-      extendBody: true,
-      body: _FadeIndexedStack(
-        index: _index,
-        children: const [HomeScreen(), SearchScreen(), _LibraryScreen()],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(36),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: Container(
-              height: 66,
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.09),
-                borderRadius: BorderRadius.circular(36),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
-              ),
-              child: Stack(
-                children: [
-                  AnimatedAlign(
-                    duration: const Duration(milliseconds: 350),
-                    curve: Curves.easeOutQuart,
-                    alignment: Alignment(
-                      _tabs.length == 1
-                          ? 0
-                          : -1 + 2 * _index / (_tabs.length - 1),
-                      0,
-                    ),
-                    child: FractionallySizedBox(
-                      widthFactor: 1 / _tabs.length,
-                      heightFactor: 1,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
+      extendBody: !wide,
+      body: wide
+          ? Row(
+              children: [
+                _NavRail(
+                  index: _index,
+                  tabs: _tabs,
+                  extended: context.isExpanded,
+                  onSelect: _select,
+                ),
+                const VerticalDivider(width: 1, thickness: 1, color: Colors.white12),
+                Expanded(
+                  child: MaxWidth(
+                    alignment: Alignment.topCenter,
+                    child: body,
+                  ),
+                ),
+              ],
+            )
+          : body,
+      bottomNavigationBar: wide ? null : _bottomBar(),
+    );
+
+    // "/" focuses search from anywhere (text fields consume the key first, so it
+    // only triggers when you're not already typing).
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.slash): _focusSearch,
+      },
+      child: Focus(autofocus: true, child: scaffold),
+    );
+  }
+
+  Widget _bottomBar() {
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(36),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            height: 66,
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(36),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+            ),
+            child: Stack(
+              children: [
+                AnimatedAlign(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeOutQuart,
+                  alignment: Alignment(
+                    _tabs.length == 1
+                        ? 0
+                        : -1 + 2 * _index / (_tabs.length - 1),
+                    0,
+                  ),
+                  child: FractionallySizedBox(
+                    widthFactor: 1 / _tabs.length,
+                    heightFactor: 1,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(30),
                       ),
                     ),
                   ),
-                  Row(children: List.generate(_tabs.length, (i) => _tab(i))),
-                ],
-              ),
+                ),
+                Row(children: List.generate(_tabs.length, (i) => _tab(i))),
+              ],
             ),
           ),
         ),
@@ -94,7 +141,7 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
     final color = selected ? _accent : Colors.white.withValues(alpha: 0.65);
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _index = i),
+        onTap: () => _select(i),
         behavior: HitTestBehavior.opaque,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -118,6 +165,58 @@ class _AppNavbarScreenState extends State<AppNavbarScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Left navigation rail shown on tablet/desktop widths. Built on Flutter's
+/// [NavigationRail] so it's keyboard-navigable and hover-aware out of the box.
+class _NavRail extends StatelessWidget {
+  final int index;
+  final List<({IconData icon, String label})> tabs;
+  final bool extended;
+  final ValueChanged<int> onSelect;
+
+  const _NavRail({
+    required this.index,
+    required this.tabs,
+    required this.extended,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return NavigationRail(
+      backgroundColor: Colors.black,
+      selectedIndex: index,
+      onDestinationSelected: onSelect,
+      extended: extended,
+      minWidth: 76,
+      minExtendedWidth: 210,
+      groupAlignment: -0.85,
+      indicatorColor: Colors.white.withValues(alpha: 0.12),
+      selectedIconTheme: const IconThemeData(color: _accent),
+      unselectedIconTheme:
+          IconThemeData(color: Colors.white.withValues(alpha: 0.6)),
+      selectedLabelTextStyle: const TextStyle(
+        color: _accent,
+        fontWeight: FontWeight.w600,
+      ),
+      unselectedLabelTextStyle:
+          TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+      labelType:
+          extended ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+      leading: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Icon(Iconsax.play_circle, color: _accent, size: extended ? 30 : 26),
+      ),
+      destinations: [
+        for (final t in tabs)
+          NavigationRailDestination(
+            icon: Icon(t.icon),
+            label: Text(t.label),
+          ),
+      ],
     );
   }
 }
@@ -276,25 +375,27 @@ class _LibraryScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const WatchedScreen()),
               ),
             ),
-            _menuItem(
-              context,
-              icon: Iconsax.document_download,
-              title: "Downloads",
-              listenable: DownloadsService.instance,
-              subtitleBuilder: () {
-                final downloading = DownloadsService.instance.downloadingCount;
-                if (downloading > 0) {
-                  return "$downloading downloading";
-                }
-                final count = DownloadsService.instance.completedCount;
-                if (count == 0) return "No downloads yet";
-                return "$count ${count == 1 ? "title" : "titles"}";
-              },
-              onTap: () => Navigator.push(
+            // Downloads need a real filesystem — hidden on web.
+            if (supportsFileDownloads)
+              _menuItem(
                 context,
-                MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+                icon: Iconsax.document_download,
+                title: "Downloads",
+                listenable: DownloadsService.instance,
+                subtitleBuilder: () {
+                  final downloading = DownloadsService.instance.downloadingCount;
+                  if (downloading > 0) {
+                    return "$downloading downloading";
+                  }
+                  final count = DownloadsService.instance.completedCount;
+                  if (count == 0) return "No downloads yet";
+                  return "$count ${count == 1 ? "title" : "titles"}";
+                },
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+                ),
               ),
-            ),
             _menuItem(
               context,
               icon: Iconsax.setting_2,

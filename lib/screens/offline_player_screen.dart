@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:libera/common/adaptive_dialog.dart';
 import 'package:libera/common/media_widgets.dart';
+import 'package:libera/common/platform.dart';
 import 'package:libera/services/app_settings.dart';
 import 'package:libera/services/continue_watching_service.dart';
 import 'package:libera/services/watched_service.dart';
@@ -36,8 +39,10 @@ class OfflinePlayerScreen extends StatefulWidget {
     this.card,
     this.season,
     this.episode,
-  }) : assert(filePath != null || mediaUrl != null,
-            'Provide either a filePath or a mediaUrl');
+  }) : assert(
+         filePath != null || mediaUrl != null,
+         'Provide either a filePath or a mediaUrl',
+       );
 
   @override
   State<OfflinePlayerScreen> createState() => _OfflinePlayerScreenState();
@@ -74,8 +79,8 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
     // We manage this ourselves (instead of media_kit's fullscreen route) so the
     // back button always exits the player in a single tap, never to a half-way
     // windowed state.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    SystemChrome.setPreferredOrientations(const [
+    setSystemUIModeSafe(SystemUiMode.immersiveSticky);
+    setOrientationsSafe(const [
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
@@ -93,26 +98,34 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
       }
     });
 
-    _subs.add(_player.stream.duration.listen((d) {
-      _duration = d.inMilliseconds / 1000.0;
-      // Seek to the resume point once the media is loaded.
-      if (!_seeked && _startAt > 1 && d > Duration.zero) {
-        _seeked = true;
-        _player.seek(Duration(milliseconds: (_startAt * 1000).round()));
-      }
-    }));
-    _subs.add(_player.stream.position.listen((p) {
-      _position = p.inMilliseconds / 1000.0;
-      if (DateTime.now().difference(_lastSave).inSeconds >= 10) {
-        _saveProgress();
-      }
-    }));
-    _subs.add(_player.stream.completed.listen((done) {
-      if (done) _onEnded();
-    }));
-    _subs.add(_player.stream.buffering.listen((b) {
-      if (mounted && b != _buffering) setState(() => _buffering = b);
-    }));
+    _subs.add(
+      _player.stream.duration.listen((d) {
+        _duration = d.inMilliseconds / 1000.0;
+        // Seek to the resume point once the media is loaded.
+        if (!_seeked && _startAt > 1 && d > Duration.zero) {
+          _seeked = true;
+          _player.seek(Duration(milliseconds: (_startAt * 1000).round()));
+        }
+      }),
+    );
+    _subs.add(
+      _player.stream.position.listen((p) {
+        _position = p.inMilliseconds / 1000.0;
+        if (DateTime.now().difference(_lastSave).inSeconds >= 10) {
+          _saveProgress();
+        }
+      }),
+    );
+    _subs.add(
+      _player.stream.completed.listen((done) {
+        if (done) _onEnded();
+      }),
+    );
+    _subs.add(
+      _player.stream.buffering.listen((b) {
+        if (mounted && b != _buffering) setState(() => _buffering = b);
+      }),
+    );
 
     final source = widget.mediaUrl ?? Uri.file(widget.filePath!).toString();
     _player.open(Media(source));
@@ -125,8 +138,10 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
   /// keep filling it (even while paused) so the stream downloads ahead like
   /// Stremio. Best-effort: silently ignored on platforms without libmpv.
   Future<void> _tuneStreamCache() async {
-    final platform = _player.platform;
-    if (platform is! NativePlayer) return;
+    // libmpv-only tuning; the web player has no setProperty. Skip on web and
+    // call via dynamic so the method resolves at runtime only where it exists.
+    if (kIsWeb) return;
+    final dynamic platform = _player.platform;
     try {
       await platform.setProperty('cache', 'yes');
       await platform.setProperty('cache-secs', '3600');
@@ -192,12 +207,36 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
     await _player.seek(clamped);
   }
 
+  void _togglePlay() => _player.playOrPause();
+
+  void _adjustVolume(double delta) {
+    final v = (_player.state.volume + delta).clamp(0.0, 100.0);
+    _player.setVolume(v);
+  }
+
+  /// Desktop/web keyboard controls (no-op effect on touch, harmless there).
+  Map<ShortcutActivator, VoidCallback> get _shortcuts => {
+    const SingleActivator(LogicalKeyboardKey.space): _togglePlay,
+    const SingleActivator(LogicalKeyboardKey.keyK): _togglePlay,
+    const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+        _skip(-_skipSeconds),
+    const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+        _skip(_skipSeconds),
+    const SingleActivator(LogicalKeyboardKey.keyJ): () => _skip(-_skipSeconds),
+    const SingleActivator(LogicalKeyboardKey.keyL): () => _skip(_skipSeconds),
+    const SingleActivator(LogicalKeyboardKey.arrowUp): () => _adjustVolume(10),
+    const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+        _adjustVolume(-10),
+    const SingleActivator(LogicalKeyboardKey.escape): () =>
+        Navigator.maybePop(context),
+  };
+
   @override
   void dispose() {
     if (!_ended) _saveProgress();
     // Restore portrait/normal UI on the way out.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    setSystemUIModeSafe(SystemUiMode.edgeToEdge);
+    setOrientationsSafe(DeviceOrientation.values);
     for (final s in _subs) {
       s.cancel();
     }
@@ -211,28 +250,34 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: MaterialVideoControlsTheme(
-        normal: theme,
-        fullscreen: theme,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Video(
-              controller: _controller,
-              controls: MaterialVideoControls,
-              fit: BoxFit.contain,
-              subtitleViewConfiguration: _subtitleConfig(),
-            ),
-            if (_buffering)
-              const IgnorePointer(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: _accent,
-                    strokeWidth: 3,
-                  ),
+      body: CallbackShortcuts(
+        bindings: _shortcuts,
+        child: Focus(
+          autofocus: true,
+          child: MaterialVideoControlsTheme(
+            normal: theme,
+            fullscreen: theme,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Video(
+                  controller: _controller,
+                  controls: MaterialVideoControls,
+                  fit: BoxFit.contain,
+                  subtitleViewConfiguration: _subtitleConfig(),
                 ),
-              ),
-          ],
+                if (_buffering)
+                  const IgnorePointer(
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: _accent,
+                        strokeWidth: 3,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -258,8 +303,9 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
         color: Colors.white,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.2,
-        backgroundColor:
-            withBox ? const Color(0x99000000) : const Color(0x00000000),
+        backgroundColor: withBox
+            ? const Color(0x99000000)
+            : const Color(0x00000000),
         shadows: outline,
       ),
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
@@ -276,9 +322,12 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
       brightnessGesture: true,
       buttonBarButtonColor: Colors.white,
       // Lift the seek bar / bottom button row off the very bottom edge.
-      seekBarMargin: const EdgeInsets.only(left: 20, right: 20, bottom: 8),
-      bottomButtonBarMargin:
-          const EdgeInsets.only(left: 20, right: 20, bottom: 22),
+      seekBarMargin: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+      bottomButtonBarMargin: const EdgeInsets.only(
+        left: 20,
+        right: 20,
+        bottom: 22,
+      ),
       topButtonBar: [
         MaterialCustomButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -328,10 +377,7 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
         ),
         const Spacer(),
       ],
-      bottomButtonBar: const [
-        MaterialPositionIndicator(),
-        Spacer(),
-      ],
+      bottomButtonBar: const [MaterialPositionIndicator(), Spacer()],
     );
   }
 
@@ -410,13 +456,9 @@ class _OfflinePlayerScreenState extends State<OfflinePlayerScreen> {
   }
 
   void _sheet({required String title, required List<Widget> children}) {
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: const Color(0xFF1C1C1E),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
       builder: (ctx) => SafeArea(
         child: ConstrainedBox(
           constraints: BoxConstraints(

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:libera/common/adaptive_dialog.dart';
 import 'package:libera/common/download_widgets.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/utils.dart';
@@ -14,7 +15,6 @@ import 'package:libera/model/watch_provider.dart';
 import 'package:libera/screens/trailer_player.dart';
 import 'package:libera/services/downloads_service.dart';
 import 'package:libera/services/download_manager.dart';
-import 'package:media_kit/ffi/src/allocation.dart';
 
 class DetailCircleButton extends StatelessWidget {
   final IconData icon;
@@ -32,6 +32,7 @@ class DetailCircleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Pressable(
       onTap: onPressed,
+      focusBorderRadius: BorderRadius.circular(25),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(25),
         child: BackdropFilter(
@@ -243,6 +244,8 @@ class HeroActionButtons extends StatelessWidget {
         Pressable(
           onTap: onPlay,
           onLongPress: onPlayLongPress,
+          autofocus: true,
+          focusBorderRadius: BorderRadius.circular(25),
           child: Container(
             height: 50,
             padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -279,6 +282,7 @@ class HeroActionButtons extends StatelessWidget {
         Pressable(
           onTap: onMyList,
           pressedScale: 0.9,
+          focusBorderRadius: BorderRadius.circular(25),
           child: Container(
             height: 50,
             width: 50,
@@ -298,6 +302,7 @@ class HeroActionButtons extends StatelessWidget {
           Pressable(
             onTap: onWatched,
             pressedScale: 0.9,
+            focusBorderRadius: BorderRadius.circular(25),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOut,
@@ -747,12 +752,10 @@ class SeasonEpisodesSection extends StatelessWidget {
 
   void _pickSeason(BuildContext context) {
     if (seasonCount <= 1) return;
-    showModalBottomSheet(
+    showAdaptiveSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      maxDialogWidth: 420,
       builder: (context) {
         return SafeArea(
           child: ListView.builder(
@@ -1031,13 +1034,10 @@ Future<void> showDownloadSheet(
   void Function(int season, int episode)? onTorrentEpisode,
   void Function(int season)? onTorrentSeason,
 }) {
-  return showModalBottomSheet(
+  return showAdaptiveSheet(
     context: context,
     backgroundColor: const Color(0xFF1C1C1E),
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
+    maxDialogWidth: 640,
     builder: (_) => _DownloadSheet(
       show: show,
       seasonCount: seasonCount,

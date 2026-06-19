@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:libera/common/adaptive_dialog.dart';
 import 'package:libera/common/media_widgets.dart';
 import 'package:libera/common/torrent_playback.dart';
 import 'package:libera/models/stremio_stream.dart';
@@ -137,13 +138,10 @@ Future<void> showTorrentSources(
     return;
   }
 
-  showModalBottomSheet(
+  showAdaptiveSheet(
     context: context,
     backgroundColor: _sheetBg,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
+    maxDialogWidth: 640,
     builder: (sheetCtx) => _SourcesSheet(
       label: label,
       streams: streams,

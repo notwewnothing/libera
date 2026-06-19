@@ -1,9 +1,19 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show DeviceOrientation;
+import 'package:libera/common/platform.dart';
+import 'package:libera/common/web_embed.dart';
 import 'package:libera/screens/detail_widgets.dart';
-import 'package:video_player/video_player.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Video;
 
+/// Full-screen trailer player.
+///
+/// On native platforms it resolves the YouTube stream with `youtube_explode`
+/// and plays it through media_kit (works on mobile AND desktop, unlike
+/// video_player). On web — where youtube_explode is blocked by CORS — it embeds
+/// YouTube's own iframe player instead.
 class TrailerPlayerScreen extends StatefulWidget {
   final String title;
   final String youtubeKey;
@@ -19,19 +29,20 @@ class TrailerPlayerScreen extends StatefulWidget {
 }
 
 class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
-  VideoPlayerController? _controller;
+  Player? _player;
+  VideoController? _controller;
   bool _error = false;
 
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations([
+    setOrientationsSafe([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _load();
+    if (!kIsWeb) _load();
   }
 
   Future<void> _load() async {
@@ -44,15 +55,17 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
       muxed.sort(
         (a, b) => a.videoQuality.index.compareTo(b.videoQuality.index),
       );
-      final controller =
-          VideoPlayerController.networkUrl(Uri.parse(muxed.last.url.toString()));
-      await controller.initialize();
+      final player = Player();
+      final controller = VideoController(player);
+      await player.open(Media(muxed.last.url.toString()));
       if (!mounted) {
-        controller.dispose();
+        player.dispose();
         return;
       }
-      controller.play();
-      setState(() => _controller = controller);
+      setState(() {
+        _player = player;
+        _controller = controller;
+      });
     } catch (e) {
       debugPrint("Failed to play trailer: $e");
       if (mounted) setState(() => _error = true);
@@ -63,73 +76,57 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
 
   @override
   void dispose() {
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-    _controller?.dispose();
+    setOrientationsSafe([DeviceOrientation.portraitUp]);
+    _player?.dispose();
     super.dispose();
-  }
-
-  void _togglePlay() {
-    final c = _controller;
-    if (c == null) return;
-    if (c.value.isPlaying) {
-      c.pause();
-    } else {
-      c.play();
-    }
-    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    final c = _controller;
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _togglePlay,
-        behavior: HitTestBehavior.opaque,
-        child: Stack(
-          children: [
-            Center(
-              child: _error
-                  ? Text(
-                      "Couldn't play this trailer",
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
-                      ),
-                    )
-                  : c == null
-                      ? const CircularProgressIndicator(color: Colors.white24)
-                      : AspectRatio(
-                          aspectRatio: c.value.aspectRatio,
-                          child: VideoPlayer(c),
-                        ),
+      body: Stack(
+        children: [
+          Positioned.fill(child: _content()),
+          Positioned(
+            left: 15,
+            top: MediaQuery.paddingOf(context).top + 8,
+            child: DetailCircleButton(
+              icon: Icons.close,
+              onPressed: () => Navigator.pop(context),
             ),
-            if (c != null)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.paddingOf(context).bottom + 16,
-                child: VideoProgressIndicator(
-                  c,
-                  allowScrubbing: true,
-                  colors: VideoProgressColors(
-                    playedColor: Colors.white,
-                    bufferedColor: Colors.white.withValues(alpha: 0.3),
-                    backgroundColor: Colors.white.withValues(alpha: 0.12),
-                  ),
-                ),
-              ),
-            Positioned(
-              left: 15,
-              top: MediaQuery.paddingOf(context).top + 8,
-              child: DetailCircleButton(
-                icon: Icons.close,
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _content() {
+    if (kIsWeb) {
+      // YouTube's iframe player handles its own controls on web.
+      return buildWebIframe(
+        'https://www.youtube.com/embed/${widget.youtubeKey}'
+        '?autoplay=1&rel=0&playsinline=1',
+      );
+    }
+    if (_error) {
+      return Center(
+        child: Text(
+          "Couldn't play this trailer",
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+        ),
+      );
+    }
+    final controller = _controller;
+    if (controller == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white24),
+      );
+    }
+    return Video(
+      controller: controller,
+      controls: MaterialVideoControls,
+      fit: BoxFit.contain,
     );
   }
 }

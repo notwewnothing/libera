@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:libera/common/adaptive_dialog.dart';
 import 'package:libera/common/download_widgets.dart';
 import 'package:libera/services/index_scraper.dart';
 
@@ -57,13 +58,9 @@ Future<VideoFile?> pickSource(
   String title,
   List<VideoFile> sources,
 ) {
-  return showModalBottomSheet<VideoFile>(
+  return showAdaptiveSheet<VideoFile>(
     context: context,
     backgroundColor: _sheetBg,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
     builder: (ctx) => SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -115,13 +112,9 @@ Future<SeasonVariant?> pickSeasonVariant(
   int season,
   List<SeasonVariant> variants,
 ) {
-  return showModalBottomSheet<SeasonVariant>(
+  return showAdaptiveSheet<SeasonVariant>(
     context: context,
     backgroundColor: _sheetBg,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-    ),
     builder: (ctx) => SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
